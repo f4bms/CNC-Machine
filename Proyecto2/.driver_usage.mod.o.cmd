@@ -1,8 +1,9 @@
-savedcmd_driver.o := gcc-13 -Wp,-MMD,./.driver.o.d -nostdinc -I/usr/src/linux-headers-6.17.0-23-generic/arch/x86/include -I/usr/src/linux-headers-6.17.0-23-generic/arch/x86/include/generated -I/usr/src/linux-headers-6.17.0-23-generic/include -I/usr/src/linux-headers-6.17.0-23-generic/include -I/usr/src/linux-headers-6.17.0-23-generic/arch/x86/include/uapi -I/usr/src/linux-headers-6.17.0-23-generic/arch/x86/include/generated/uapi -I/usr/src/linux-headers-6.17.0-23-generic/include/uapi -I/usr/src/linux-headers-6.17.0-23-generic/include/generated/uapi -include /usr/src/linux-headers-6.17.0-23-generic/include/linux/compiler-version.h -include /usr/src/linux-headers-6.17.0-23-generic/include/linux/kconfig.h -I/usr/src/linux-headers-6.17.0-23-generic/ubuntu/include -include /usr/src/linux-headers-6.17.0-23-generic/include/linux/compiler_types.h -D__KERNEL__ -std=gnu11 -fshort-wchar -funsigned-char -fno-common -fno-PIE -fno-strict-aliasing -mno-sse -mno-mmx -mno-sse2 -mno-3dnow -mno-avx -mno-sse4a -fcf-protection=none -m64 -falign-jumps=1 -falign-loops=1 -mno-80387 -mno-fp-ret-in-387 -mpreferred-stack-boundary=3 -mskip-rax-setup -march=x86-64 -mtune=generic -mno-red-zone -mcmodel=kernel -mstack-protector-guard-reg=gs -mstack-protector-guard-symbol=__ref_stack_chk_guard -Wno-sign-compare -fno-asynchronous-unwind-tables -mindirect-branch=thunk-extern -mindirect-branch-register -mindirect-branch-cs-prefix -mfunction-return=thunk-extern -fno-jump-tables -mharden-sls=all -fpatchable-function-entry=16,16 -fno-delete-null-pointer-checks -O2 -fno-allow-store-data-races -fstack-protector-strong -fno-omit-frame-pointer -fno-optimize-sibling-calls -ftrivial-auto-var-init=zero -fno-stack-clash-protection -fzero-call-used-regs=used-gpr -pg -mrecord-mcount -mfentry -DCC_USING_FENTRY -falign-functions=16 -fstrict-flex-arrays=3 -fno-strict-overflow -fno-stack-check -fconserve-stack -fno-builtin-wcslen -Wall -Wextra -Wundef -Werror=implicit-function-declaration -Werror=implicit-int -Werror=return-type -Werror=strict-prototypes -Wno-format-security -Wno-trigraphs -Wno-frame-address -Wno-address-of-packed-member -Wmissing-declarations -Wmissing-prototypes -Wframe-larger-than=1024 -Wno-main -Wno-dangling-pointer -Wvla-larger-than=1 -Wno-pointer-sign -Wcast-function-type -Wno-array-bounds -Wno-stringop-overflow -Wno-alloc-size-larger-than -Wimplicit-fallthrough=5 -Werror=date-time -Werror=incompatible-pointer-types -Werror=designated-init -Wenum-conversion -Wunused -Wno-unused-but-set-variable -Wno-unused-const-variable -Wno-packed-not-aligned -Wno-format-overflow -Wno-format-truncation -Wno-stringop-truncation -Wno-override-init -Wno-missing-field-initializers -Wno-type-limits -Wno-shift-negative-value -Wno-maybe-uninitialized -Wno-sign-compare -Wno-unused-parameter -g -gdwarf-5  -fsanitize=bounds-strict -fsanitize=shift -fsanitize=bool -fsanitize=enum    -DMODULE  -DKBUILD_BASENAME='"driver"' -DKBUILD_MODNAME='"driver"' -D__KBUILD_MODNAME=kmod_driver -c -o driver.o driver.c   ; /usr/src/linux-headers-6.17.0-23-generic/tools/objtool/objtool --hacks=jump_label --hacks=noinstr --hacks=skylake --retpoline --rethunk --sls --stackval --static-call --uaccess --prefix=16 --Werror   --module driver.o
+savedcmd_driver_usage.mod.o := gcc-13 -Wp,-MMD,./.driver_usage.mod.o.d -nostdinc -I/usr/src/linux-headers-6.17.0-23-generic/arch/x86/include -I/usr/src/linux-headers-6.17.0-23-generic/arch/x86/include/generated -I/usr/src/linux-headers-6.17.0-23-generic/include -I/usr/src/linux-headers-6.17.0-23-generic/include -I/usr/src/linux-headers-6.17.0-23-generic/arch/x86/include/uapi -I/usr/src/linux-headers-6.17.0-23-generic/arch/x86/include/generated/uapi -I/usr/src/linux-headers-6.17.0-23-generic/include/uapi -I/usr/src/linux-headers-6.17.0-23-generic/include/generated/uapi -include /usr/src/linux-headers-6.17.0-23-generic/include/linux/compiler-version.h -include /usr/src/linux-headers-6.17.0-23-generic/include/linux/kconfig.h -I/usr/src/linux-headers-6.17.0-23-generic/ubuntu/include -include /usr/src/linux-headers-6.17.0-23-generic/include/linux/compiler_types.h -D__KERNEL__ -std=gnu11 -fshort-wchar -funsigned-char -fno-common -fno-PIE -fno-strict-aliasing -mno-sse -mno-mmx -mno-sse2 -mno-3dnow -mno-avx -mno-sse4a -fcf-protection=none -m64 -falign-jumps=1 -falign-loops=1 -mno-80387 -mno-fp-ret-in-387 -mpreferred-stack-boundary=3 -mskip-rax-setup -march=x86-64 -mtune=generic -mno-red-zone -mcmodel=kernel -mstack-protector-guard-reg=gs -mstack-protector-guard-symbol=__ref_stack_chk_guard -Wno-sign-compare -fno-asynchronous-unwind-tables -mindirect-branch=thunk-extern -mindirect-branch-register -mindirect-branch-cs-prefix -mfunction-return=thunk-extern -fno-jump-tables -mharden-sls=all -fpatchable-function-entry=16,16 -fno-delete-null-pointer-checks -O2 -fno-allow-store-data-races -fstack-protector-strong -fno-omit-frame-pointer -fno-optimize-sibling-calls -ftrivial-auto-var-init=zero -fno-stack-clash-protection -fzero-call-used-regs=used-gpr -pg -mrecord-mcount -mfentry -DCC_USING_FENTRY -falign-functions=16 -fstrict-flex-arrays=3 -fno-strict-overflow -fno-stack-check -fconserve-stack -fno-builtin-wcslen -Wall -Wextra -Wundef -Werror=implicit-function-declaration -Werror=implicit-int -Werror=return-type -Werror=strict-prototypes -Wno-format-security -Wno-trigraphs -Wno-frame-address -Wno-address-of-packed-member -Wmissing-declarations -Wmissing-prototypes -Wframe-larger-than=1024 -Wno-main -Wno-dangling-pointer -Wvla-larger-than=1 -Wno-pointer-sign -Wcast-function-type -Wno-array-bounds -Wno-stringop-overflow -Wno-alloc-size-larger-than -Wimplicit-fallthrough=5 -Werror=date-time -Werror=incompatible-pointer-types -Werror=designated-init -Wenum-conversion -Wunused -Wno-unused-but-set-variable -Wno-unused-const-variable -Wno-packed-not-aligned -Wno-format-overflow -Wno-format-truncation -Wno-stringop-truncation -Wno-override-init -Wno-missing-field-initializers -Wno-type-limits -Wno-shift-negative-value -Wno-maybe-uninitialized -Wno-sign-compare -Wno-unused-parameter -g -gdwarf-5  -fsanitize=bounds-strict -fsanitize=shift -fsanitize=bool -fsanitize=enum    -DMODULE  -DKBUILD_BASENAME='"driver_usage.mod"' -DKBUILD_MODNAME='"driver_usage"' -D__KBUILD_MODNAME=kmod_driver_usage -c -o driver_usage.mod.o driver_usage.mod.c   ; /usr/src/linux-headers-6.17.0-23-generic/tools/objtool/objtool --hacks=jump_label --hacks=noinstr --hacks=skylake --retpoline --rethunk --sls --stackval --static-call --uaccess --prefix=16 --Werror   --module driver_usage.mod.o
 
-source_driver.o := driver.c
+source_driver_usage.mod.o := driver_usage.mod.c
 
-deps_driver.o := \
+deps_driver_usage.mod.o := \
+    $(wildcard include/config/MODULE_UNLOAD) \
   /usr/src/linux-headers-6.17.0-23-generic/include/linux/compiler-version.h \
     $(wildcard include/config/CC_VERSION_TEXT) \
   /usr/src/linux-headers-6.17.0-23-generic/include/linux/kconfig.h \
@@ -53,7 +54,6 @@ deps_driver.o := \
     $(wildcard include/config/HAVE_STATIC_CALL_INLINE) \
     $(wildcard include/config/KUNIT) \
     $(wildcard include/config/PRINTK_INDEX) \
-    $(wildcard include/config/MODULE_UNLOAD) \
     $(wildcard include/config/CONSTRUCTORS) \
     $(wildcard include/config/FUNCTION_ERROR_INJECTION) \
     $(wildcard include/config/DYNAMIC_DEBUG_CORE) \
@@ -1071,33 +1071,11 @@ deps_driver.o := \
     $(wildcard include/config/UNWINDER_ORC) \
   /usr/src/linux-headers-6.17.0-23-generic/include/asm-generic/module.h \
     $(wildcard include/config/HAVE_MOD_ARCH_SPECIFIC) \
-  /usr/src/linux-headers-6.17.0-23-generic/include/linux/io.h \
-    $(wildcard include/config/HAS_IOPORT_MAP) \
-    $(wildcard include/config/PCI) \
-    $(wildcard include/config/STRICT_DEVMEM) \
-  /usr/src/linux-headers-6.17.0-23-generic/include/linux/sizes.h \
-  /usr/src/linux-headers-6.17.0-23-generic/arch/x86/include/asm/io.h \
-    $(wildcard include/config/MTRR) \
-    $(wildcard include/config/X86_PAT) \
-  /usr/src/linux-headers-6.17.0-23-generic/arch/x86/include/generated/asm/early_ioremap.h \
-  /usr/src/linux-headers-6.17.0-23-generic/include/asm-generic/early_ioremap.h \
-    $(wildcard include/config/GENERIC_EARLY_IOREMAP) \
-  /usr/src/linux-headers-6.17.0-23-generic/arch/x86/include/asm/shared/io.h \
-  /usr/src/linux-headers-6.17.0-23-generic/include/asm-generic/io.h \
-    $(wildcard include/config/GENERIC_IOMAP) \
-    $(wildcard include/config/TRACE_MMIO_ACCESS) \
-    $(wildcard include/config/HAS_IOPORT) \
-    $(wildcard include/config/GENERIC_IOREMAP) \
-  /usr/src/linux-headers-6.17.0-23-generic/include/asm-generic/iomap.h \
-  /usr/src/linux-headers-6.17.0-23-generic/include/asm-generic/pci_iomap.h \
-    $(wildcard include/config/NO_GENERIC_PCI_IOPORT_MAP) \
-    $(wildcard include/config/GENERIC_PCI_IOMAP) \
-  /usr/src/linux-headers-6.17.0-23-generic/include/linux/logic_pio.h \
-    $(wildcard include/config/INDIRECT_PIO) \
-  /usr/src/linux-headers-6.17.0-23-generic/include/linux/fwnode.h \
+  /usr/src/linux-headers-6.17.0-23-generic/include/linux/export-internal.h \
+    $(wildcard include/config/PARISC) \
 
-driver.o: $(deps_driver.o)
+driver_usage.mod.o: $(deps_driver_usage.mod.o)
 
-$(deps_driver.o):
+$(deps_driver_usage.mod.o):
 
-driver.o: $(wildcard /usr/src/linux-headers-6.17.0-23-generic/tools/objtool/objtool)
+driver_usage.mod.o: $(wildcard /usr/src/linux-headers-6.17.0-23-generic/tools/objtool/objtool)

@@ -4,21 +4,18 @@
 #include <linux/fs.h>
 #include <linux/uaccess.h>
 #include <linux/io.h>
-#include <linux/delay.h>
-#include <linux/device.h>
 
+//se puede agregar un class_create y el device create para no tener que yo manuealmente crear el archivo para hablar con el driver
+//ahorita se ocupa usar el mkmod
 
 
 #define DEVICE_NAME "gpio_device"
-#define GPIO_BASE_PHYS  0X3F200000
-#define NUM_LEDS 10
+#define GPIO_BASE_PHYS  0X3FE00000
+#define NUM_LEDS 1
+#define LED_PIN 17
 
 static int major;
 static void __iomem *gpio_base;
-static int led_pins[NUM_LEDS] = {17, 27, 22, 5, 6, 13, 19, 26, 12, 16};
-static dev_t gpio_dev_number;
-static struct class *gpio_class = NULL;
-static struct cdev gpio_cdev;
 
 
 //calculo y uso de pines necesarios
@@ -51,29 +48,21 @@ static void gpio_write(int pin, int value){
 static ssize_t dev_write(struct file *file, const char __user *buf, size_t len, loff_t *offset)
 {
     char data[NUM_LEDS] = {0};
-    int pin, value;
 
-    if (len > [NUM_LEDS]) len = NUM_LEDS; //se limita la lonigtud, osea el numero de leds que hay 
+    if (len > NUM_LEDS) len = NUM_LEDS; // se limita la longitud a 1 byte
+    if (len == 0) return 0;
     
     if (copy_from_user(data, buf, len)) //copia de usuario hacua kernel
         return -EFAULT;
 
-    //para cada bit se enciende o se apaga el pin
-   for (int i = 0; i < len; i ++) {
-       if (data[i] == '1') {
-           gpio_write(led_pins[i], 1);
-           pr_info("LED%d encendido {GPIO%d}\n", i, led_pins[i]);
-
-       }
-   }
-
-   msleep(3000);
-   for (int i = 0; i < len; i ++) {
-       if (data[i] == '1') {
-           gpio_write(led_pins[i], 0);
-           pr_info("LED%d apagado {GPIO%d}\n", i, led_pins[i]);
-       }
-   }
+    // se espera 1 para encenderlo, cualquier otro valor lo apaga
+    if (data[0] == '1') {
+        gpio_write(LED_PIN, 1);
+        pr_info("LED encendido {GPIO%d}\n", LED_PIN);
+    } else {
+        gpio_write(LED_PIN, 0);
+        pr_info("LED apagado {GPIO%d}\n", LED_PIN);
+    }
 
     return len;
 }
@@ -104,17 +93,14 @@ static int __init gpio_driver_init(void)
     }
 
 
-    //pone los pines en los que estén los leds como salidas
-    for (int i = 0; i < NUM_LEDS; i++)
-        gpio_set_output(led_pins[i]);
+    gpio_set_output(LED_PIN);
 
     pr_info("GPIO Driver loaded. major=%d\n", major);
     return 0;
 }
 
 static void __exit gpio_driver_exit(void){
-    for(int i = 0; i < NUM_LEDS; i++)
-        gpio_write(led_pins[i], 0);
+    gpio_write(LED_PIN, 0);
     iounmap(gpio_base);
     unregister_chrdev(major, DEVICE_NAME);
 

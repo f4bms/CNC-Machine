@@ -4,6 +4,7 @@
 #   make clean
 
 obj-m += driver.o
+obj-m += driver_usage.o
 
 KDIR ?= /lib/modules/$(shell uname -r)/build
 PWD  := $(shell pwd)
