@@ -1,8 +1,11 @@
 CC=gcc
+
 CFLAGS=-Wall -Wextra
 
+SRC = main.c admin_tareas.c
+
 all:
-	$(CC) $(CFLAGS) main.c -o servidor
+	$(CC) $(CFLAGS) $(SRC) -o servidor
 
 clean:
 	rm -f servidor

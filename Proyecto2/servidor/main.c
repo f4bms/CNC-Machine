@@ -5,6 +5,8 @@
 #include <arpa/inet.h>
 #include <sys/socket.h>
 
+#include "headers/admin_tareas.h"
+
 #define PORT 8080
 #define BUFFER_SIZE 4096
 
@@ -97,6 +99,10 @@ int main(void)
     fclose(fp);
 
     printf("Archivo guardado\n");
+
+    printf("Iniciando procesamiento MPI...\n");
+
+    admin_tareas_ejecutar("../img/received.bin");
 
     close(client_fd);
     close(server_fd);
