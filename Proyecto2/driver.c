@@ -8,11 +8,16 @@
 //se puede agregar un class_create y el device create para no tener que yo manuealmente crear el archivo para hablar con el driver
 //ahorita se ocupa usar el mkmod
 
-
 #define DEVICE_NAME "gpio_device"
-#define GPIO_BASE_PHYS  0X3FE00000
+#define GPIO_BASE_PHYS  0xFE200000UL
 #define NUM_LEDS 1
 #define LED_PIN 17
+#define BUTTON_PIN 27
+
+// offsets GPIO (para GPIO 0-31)
+#define GPSET0_OFFSET 0x1C
+#define GPCLR0_OFFSET 0x28
+#define GPLEV0_OFFSET 0x34
 
 static int major;
 static void __iomem *gpio_base;
@@ -26,9 +31,14 @@ static void gpio_set_output(int pin){
     unsigned int shift = (pin % 10) * 3;
     unsigned int value = ioread32(gpio_base + (reg * 4));
 
+    if (pin < 0 || pin > 27) {
+    pr_alert("gpio_set_output: pin %d invalido\n", pin);
+    return;
+}
+
     pr_info("config GPIO%d como salida (reg=%u shift=%u)\n", pin, reg, shift);
-    value &= ~(7 << shift);
-    value |= (1 << shift);
+    value &= ~(7U << shift);
+    value |=  (1U << shift);
 
     // Set the GPIO pin to output mode
     iowrite32(value, gpio_base + (reg * 4));
@@ -38,9 +48,40 @@ static void gpio_set_output(int pin){
 static void gpio_write(int pin, int value){
 
     if(value)
-        iowrite32(1u << pin, gpio_base + 0x1C); // turns on the pin
+        iowrite32(1u << pin, gpio_base + GPSET0_OFFSET); // turns on the pin
     else
-        iowrite32(1u << pin, gpio_base + 0x28); // turns off the pin
+        iowrite32(1u << pin, gpio_base + GPCLR0_OFFSET); // turns off the pin
+}
+
+static void gpio_set_input(int pin)
+{
+    unsigned int reg;
+    unsigned int shift;
+    unsigned int value;
+
+    if (pin < 0 || pin > 27) {
+        pr_alert("gpio_set_input: pin %d invalido\n", pin);
+        return;
+    }
+
+    reg = pin / 10;
+    shift = (pin % 10) * 3;
+    value = ioread32(gpio_base + (reg * 4));
+
+    pr_info("config GPIO%d como entrada (reg=%u shift=%u)\n", pin, reg, shift);
+    value &= ~(7U << shift); // 000 = input
+    iowrite32(value, gpio_base + (reg * 4));
+}
+
+static int gpio_read(int pin)
+{
+    u32 level;
+
+    if (pin < 0 || pin > 31)
+        return 0;
+
+    level = ioread32(gpio_base + GPLEV0_OFFSET);
+    return (level & (1u << pin)) ? 1 : 0;
 }
 
 //como estoy tocando bajo nivel ocupo escribir en un archivo
@@ -67,9 +108,29 @@ static ssize_t dev_write(struct file *file, const char __user *buf, size_t len, 
     return len;
 }
 
-//aqui agrego la otra funcion de read cuando vaya a hacer lo demás
+static ssize_t dev_read(struct file *file, char __user *buf, size_t len, loff_t *offset)
+{
+    char out;
+    pr_info("dev_read llamado, offset=%lld\n", *offset);
+    if (*offset > 0)
+        return 0;
+
+    if (len == 0)
+        return 0;
+
+    out = gpio_read(BUTTON_PIN) ? '1' : '0';
+    pr_info("BUTTON_PIN GPIO%d lee: %c\n", BUTTON_PIN, out);
+
+    if (copy_to_user(buf, &out, 1))
+        return -EFAULT;
+
+    *offset = 1;
+    return 1;
+}
+
 static struct file_operations gpio_fops = {
     .owner = THIS_MODULE,
+    .read  = dev_read,
     .write = dev_write,
 };
 
@@ -85,7 +146,7 @@ static int __init gpio_driver_init(void)
     }
 
     //mapea los registros gpio en el espacio de direcciones del kernel
-    gpio_base = ioremap(GPIO_BASE_PHYS, 0x86);
+    gpio_base = ioremap(GPIO_BASE_PHYS, 0xB4);
     if (!gpio_base) {
         pr_alert("Failed to map GPIO memory\n");
         unregister_chrdev(major, DEVICE_NAME);
@@ -94,6 +155,7 @@ static int __init gpio_driver_init(void)
 
 
     gpio_set_output(LED_PIN);
+    gpio_set_input(BUTTON_PIN);
 
     pr_info("GPIO Driver loaded. major=%d\n", major);
     return 0;

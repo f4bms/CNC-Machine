@@ -65,3 +65,32 @@ desktop.ini
 core
 core.*
 vgcore.*
+
+# Build artefacts for Linux kernel modules
+*.o
+*.ko
+*.mod
+*.mod.c
+*.mod.o
+
+# Kbuild generated files
+Module.symvers
+modules.order
+
+# Misc
+*.cmd
+.tmp_versions/
+
+# Keep source + Makefile
+!Proyecto2/driver.c
+!Proyecto2/driver_usage.c
+!Proyecto2/Makefile
+
+# But ignore everything else under Proyecto2 (except the negations above)
+Proyecto2/*
+
+# Editor/OS noise
+.vscode/
+*.swp
+*~
+.DS_Store
