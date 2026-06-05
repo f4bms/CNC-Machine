@@ -96,7 +96,7 @@ static int __init gpio_driver_init(void)
         return -1;
     }
 
-    gpio_class = class_create(DEVICE_NAME);
+    gpio_class = class_create(THIS_MODULE, DEVICE_NAME);
     if (IS_ERR(gpio_class)) {
         pr_alert("Failed to create class\n");
         cdev_del(&gpio_cdev);
