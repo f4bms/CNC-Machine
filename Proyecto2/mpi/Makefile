@@ -5,21 +5,29 @@ TARGET = mpi_processor
 SRC = \
 	main.cpp \
 	distribucion.cpp \
-	procesamiento_imagen.cpp
+	procesamiento_imagen.cpp \
+	contornos.cpp \
+	vectorizacion.cpp \
+	esqueleto.cpp
 
 OBJ = $(SRC:.cpp=.o)
 
-OPENCV_FLAGS := $(shell pkg-config --cflags --libs opencv4)
+OPENCV_CFLAGS := $(shell pkg-config --cflags opencv4)
+OPENCV_LIBS := $(shell pkg-config --libs opencv4)
 
 CXXFLAGS = -Wall -Wextra -O2
 
 all: $(TARGET)
 
 $(TARGET): $(OBJ)
-	$(CXX) $(OBJ) -o $(TARGET) $(OPENCV_FLAGS)
+	$(CXX) $(OBJ) -o $(TARGET) $(OPENCV_LIBS)
 
 %.o: %.cpp
-	$(CXX) $(CXXFLAGS) -c $< -o $@ $(shell pkg-config --cflags opencv4)
+	$(CXX) \
+	$(CXXFLAGS) \
+	$(OPENCV_CFLAGS) \
+	-c $< \
+	-o $@
 
 clean:
 	rm -f $(OBJ) $(TARGET)

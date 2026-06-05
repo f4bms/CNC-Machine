@@ -9,6 +9,9 @@
 #include "tipos.h"
 #include "distribucion.h"
 #include "procesamiento_imagen.h"
+#include "contornos.h"
+#include "vectorizacion.h"
+#include "esqueleto.h"
 
 #define OVERLAP_ROWS 10
 
@@ -35,6 +38,10 @@ int main(
         &size
     );
 
+    /*
+     * Verifica argumentos.
+     */
+
     if(argc < 2)
     {
         if(rank == 0)
@@ -55,7 +62,7 @@ int main(
     int cols = 0;
 
     /*
-     * Rank 0 carga imagen.
+     * Rank 0 carga imagen completa.
      */
 
     if(rank == 0)
@@ -97,7 +104,7 @@ int main(
     );
 
     /*
-     * Crear distribución.
+     * Crear distribución MPI.
      */
 
     DistribucionMPI dist =
@@ -116,7 +123,7 @@ int main(
     }
 
     /*
-     * Distribución MPI.
+     * Distribuir imagen.
      */
 
     int local_rows = 0;
@@ -139,7 +146,7 @@ int main(
     );
 
     /*
-     * Reconstruir fragmento local.
+     * Reconstruye imagen local.
      */
 
     cv::Mat local_image(
@@ -159,8 +166,7 @@ int main(
         );
 
     /*
-     * Opcional:
-     * guardar resultado local.
+     * Debug por rank.
      */
 
     char filename[64];
@@ -190,19 +196,110 @@ int main(
     );
 
     /*
-     * Guardado final.
+     * Solamente Rank 0 continúa
+     * con análisis posterior.
      */
 
     if(rank == 0)
     {
+        /*
+         * Imagen binaria reconstruida.
+         */
+
         cv::imwrite(
             "pcb_binary.png",
             final_image
         );
 
+        cv::Mat skeleton =
+            generar_esqueleto(
+                final_image
+            );
+
+        cv::imwrite(
+            "pcb_skeleton.png",
+            skeleton
+        );
+
         printf(
-            "\nResultado guardado:\n"
+            "Esqueleto guardado:\n"
+            "pcb_skeleton.png\n"
+        );
+
+        printf(
+            "\nImagen binaria guardada:\n"
             "pcb_binary.png\n"
+        );
+
+        /*
+         * OpenCV encuentra objetos blancos
+         * sobre fondo negro.
+         *
+         * La salida actual del procesamiento es:
+         *
+         * Fondo  = blanco
+         * Pistas = negro
+         *
+         * Por eso se invierte.
+         */
+
+        cv::Mat contours_input;
+
+        cv::bitwise_not(
+            final_image,
+            contours_input
+        );
+
+        cv::imwrite(
+            "pcb_inverted.png",
+            contours_input
+        );
+
+        /*
+         * Extracción de contornos.
+         */
+
+        auto contornos =
+            extraer_contornos(
+                contours_input
+            );
+
+        printf(
+            "Contornos encontrados: %lu\n",
+            (unsigned long)
+            contornos.size()
+        );
+
+        guardar_contornos_debug(
+            contours_input,
+            contornos,
+            "pcb_contours.png"
+        );
+
+        /*
+         * Simplificación geométrica.
+         */
+
+        auto vectores =
+            vectorizar_contornos(
+                contornos,
+                0.001
+            );
+
+        guardar_vectores_debug(
+            contours_input.size(),
+            vectores,
+            "pcb_vectors.png"
+        );
+
+        printf(
+            "Contornos guardados:\n"
+            "pcb_contours.png\n"
+        );
+
+        printf(
+            "Vectores guardados:\n"
+            "pcb_vectors.png\n"
         );
     }
 

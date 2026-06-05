@@ -40,7 +40,7 @@ cv::Mat procesar_fragmento(
         cv::ADAPTIVE_THRESH_GAUSSIAN_C,
         cv::THRESH_BINARY,
         31,
-        3
+        2
     );
 
     /*
