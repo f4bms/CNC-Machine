@@ -111,6 +111,7 @@ static ssize_t dev_write(struct file *file, const char __user *buf, size_t len, 
 static ssize_t dev_read(struct file *file, char __user *buf, size_t len, loff_t *offset)
 {
     char out;
+    pr_info("dev_read llamado, offset=%lld\n", *offset);
     if (*offset > 0)
         return 0;
 
@@ -118,6 +119,7 @@ static ssize_t dev_read(struct file *file, char __user *buf, size_t len, loff_t 
         return 0;
 
     out = gpio_read(BUTTON_PIN) ? '1' : '0';
+    pr_info("BUTTON_PIN GPIO%d lee: %c\n", BUTTON_PIN, out);
 
     if (copy_to_user(buf, &out, 1))
         return -EFAULT;
