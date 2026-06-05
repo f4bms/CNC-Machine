@@ -165,6 +165,19 @@ int main(
             local_image
         );
 
+    char dbg_name[64];
+
+    sprintf(
+        dbg_name,
+        "rank_%d_binary.png",
+        rank
+    );
+
+    cv::imwrite(
+        dbg_name,
+        processed
+    );
+
     /*
      * Debug por rank.
      */

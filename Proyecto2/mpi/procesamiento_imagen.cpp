@@ -13,12 +13,19 @@ cv::Mat procesar_fragmento(
      * =====================================
      */
 
-    cv::Mat filtered;
+    cv::Mat denoised;
 
-    cv::medianBlur(
+    /*
+    * Filtro fuerte preservador de bordes.
+    * Mejor que medianBlur para PCB fotografiada.
+    */
+
+    cv::fastNlMeansDenoising(
         imagen,
-        filtered,
-        5
+        denoised,
+        30,   // strength luma
+        7,    // template window
+        21    // search window
     );
 
     /*
@@ -34,13 +41,23 @@ cv::Mat procesar_fragmento(
     cv::Mat binary;
 
     cv::adaptiveThreshold(
-        filtered,
+        denoised,
         binary,
         255,
         cv::ADAPTIVE_THRESH_GAUSSIAN_C,
-        cv::THRESH_BINARY,
-        31,
-        2
+        cv::THRESH_BINARY_INV,
+        91,
+        -4
+    );
+
+    cv::morphologyEx(
+        binary,
+        binary,
+        cv::MORPH_OPEN,
+        cv::getStructuringElement(
+            cv::MORPH_RECT,
+            cv::Size(2,2)
+        )
     );
 
     /*
