@@ -5,6 +5,8 @@
 #include <stdlib.h>
 #include <vector>
 
+#include "procesamiento_imagen.h"
+
 int main(int argc, char *argv[])
 {
     /*
@@ -200,6 +202,70 @@ int main(int argc, char *argv[])
     );
 
     /*
+    * Convierte el buffer recibido por MPI
+    * en una imagen OpenCV local.
+    *
+    * No se copian datos.
+    * OpenCV utiliza directamente
+    * la memoria de local_buffer.
+    */
+    cv::Mat local_image(
+        local_rows,
+        cols,
+        CV_8UC1,
+        local_buffer.data()
+    );
+
+    /*
+    * Procesamiento local.
+    *
+    * Convierte la región asignada
+    * a una imagen binaria.
+    */
+
+    cv::Mat binary;
+
+    cv::adaptiveThreshold(
+        local_image,
+        binary,
+        255,
+        cv::ADAPTIVE_THRESH_GAUSSIAN_C,
+        cv::THRESH_BINARY,
+        31,
+        5
+    );
+
+    // Limpia el resultado
+    cv::Mat cleaned;
+
+    cv::Mat kernel =
+        cv::getStructuringElement(
+            cv::MORPH_RECT,
+            cv::Size(3,3)
+        );
+
+    cv::morphologyEx(
+        binary,
+        cleaned,
+        cv::MORPH_CLOSE,
+        kernel
+    );
+
+    // Guarda el fragmento recibido por cada rank de nodo
+    char filename[64];
+
+    sprintf(
+        filename,
+        "rank_%d_original.png",
+        rank
+    );
+
+    cv::imwrite(
+        filename,
+        local_image
+    );
+
+    /*
      * Verificación básica.
      */
     printf(
@@ -215,90 +281,65 @@ int main(int argc, char *argv[])
      */
     long long suma_local = 0;
 
-    for(size_t i = 0;
-        i < local_buffer.size();
-        i++)
-    {
-        suma_local += local_buffer[i];
-    }
+    /*
+    * Buffer para enviar el resultado
+    * procesado de cada rank.
+    */
 
-    printf(
-        "Rank %d suma local = %lld\n",
-        rank,
-        suma_local
+    std::vector<unsigned char> binary_buffer(
+        binary.data,
+        binary.data +
+        binary.total()
     );
 
     /*
-     * MPI suma automáticamente los resultados
-     * de todos los ranks y almacena el total
-     * únicamente en Rank 0.
-     */
-    long long suma_global = 0;
+    * Solo Rank 0 almacenará
+    * la imagen reconstruida.
+    */
+    std::vector<unsigned char> reconstructed;
 
-    MPI_Reduce(
-        &suma_local,
-        &suma_global,
-        1,
-        MPI_LONG_LONG,
-        MPI_SUM,
+    if(rank == 0)
+    {
+        reconstructed.resize(
+            rows * cols
+        );
+    }
+
+    MPI_Gatherv(
+        binary_buffer.data(),
+        local_rows * cols,
+        MPI_UNSIGNED_CHAR,
+
+        rank == 0
+            ? reconstructed.data()
+            : NULL,
+
+        sendcounts.data(),
+        displs.data(),
+
+        MPI_UNSIGNED_CHAR,
+
         0,
         MPI_COMM_WORLD
     );
 
-    /*
-     * VALIDACIÓN DE INTEGRIDAD
-     *
-     * Rank 0 vuelve a recorrer la imagen
-     * completa localmente y compara el resultado
-     * contra la suma obtenida mediante MPI.
-     */
     if(rank == 0)
     {
-        long long referencia = 0;
+        cv::Mat final_image(
+            rows,
+            cols,
+            CV_8UC1,
+            reconstructed.data()
+        );
 
-        for(int r = 0;
-            r < image.rows;
-            r++)
-        {
-            for(int c = 0;
-                c < image.cols;
-                c++)
-            {
-                referencia +=
-                    image.at<unsigned char>(r, c);
-            }
-        }
-
-        printf("\n");
-        printf("=====================================\n");
-        printf("VALIDACION DE INTEGRIDAD\n");
-        printf("=====================================\n");
-
-        printf(
-            "Referencia (imagen completa): %lld\n",
-            referencia
+        cv::imwrite(
+            "pcb_binary.png",
+            final_image
         );
 
         printf(
-            "MPI Reduce: %lld\n",
-            suma_global
-        );
-
-        if(referencia == suma_global)
-        {
-            printf(
-                "RESULTADO: VALIDACION OK\n"
-            );
-        }
-        else
-        {
-            printf(
-                "RESULTADO: ERROR EN DISTRIBUCION\n"
-            );
-        }
-
-        printf(
-            "=====================================\n\n"
+            "\nImagen reconstruida guardada:\n"
+            "pcb_binary.png\n"
         );
     }
 

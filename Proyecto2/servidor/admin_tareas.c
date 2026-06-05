@@ -1,4 +1,4 @@
-#include "headers/admin_tareas.h"
+#include "admin_tareas.h"
 
 #include <stdio.h>
 #include <stdlib.h>

@@ -4,8 +4,12 @@ Proyecto2/servidor/servidor
 Proyecto2/mpi/mpi_processor
 Proyecto2/**/a.out
 *.bin
+*.png
 *.elf
 a.out
+
+# Generated images and binary outputs
+Proyecto2/img/
 
 # Linux kernel module build artifacts
 Proyecto2/*.ko
