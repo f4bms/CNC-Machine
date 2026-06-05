@@ -10,7 +10,7 @@
 
 
 #define DEVICE_NAME "gpio_device"
-#define GPIO_BASE_PHYS  0X7FE200000
+#define GPIO_BASE_PHYS  0xFE200000UL
 #define NUM_LEDS 1
 #define LED_PIN 17
 
@@ -26,9 +26,14 @@ static void gpio_set_output(int pin){
     unsigned int shift = (pin % 10) * 3;
     unsigned int value = ioread32(gpio_base + (reg * 4));
 
+    if (pin < 0 || pin > 27) {
+    pr_alert("gpio_set_output: pin %d invalido\n", pin);
+    return;
+}
+
     pr_info("config GPIO%d como salida (reg=%u shift=%u)\n", pin, reg, shift);
-    value &= ~(7 << shift);
-    value |= (1 << shift);
+    value &= ~(7U << shift);
+    value |=  (1U << shift);
 
     // Set the GPIO pin to output mode
     iowrite32(value, gpio_base + (reg * 4));
@@ -67,9 +72,14 @@ static ssize_t dev_write(struct file *file, const char __user *buf, size_t len, 
     return len;
 }
 
-//aqui agrego la otra funcion de read cuando vaya a hacer lo demás
+static ssize_t dev_read(struct file *file, char __user *buf, size_t len, loff_t *offset)
+{
+    return 0;
+}
+
 static struct file_operations gpio_fops = {
     .owner = THIS_MODULE,
+    .read  = dev_read,
     .write = dev_write,
 };
 
@@ -85,7 +95,7 @@ static int __init gpio_driver_init(void)
     }
 
     //mapea los registros gpio en el espacio de direcciones del kernel
-    gpio_base = ioremap(GPIO_BASE_PHYS, 0x86);
+    gpio_base = ioremap(GPIO_BASE_PHYS, 0xB4);
     if (!gpio_base) {
         pr_alert("Failed to map GPIO memory\n");
         unregister_chrdev(major, DEVICE_NAME);
