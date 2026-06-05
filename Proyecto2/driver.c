@@ -4,17 +4,22 @@
 #include <linux/fs.h>
 #include <linux/uaccess.h>
 #include <linux/io.h>
+#include <linux/cdev.h>
+#include <linux/device.h>
 
 //se puede agregar un class_create y el device create para no tener que yo manuealmente crear el archivo para hablar con el driver
 //ahorita se ocupa usar el mkmod
 
 
 #define DEVICE_NAME "gpio_device"
-#define GPIO_BASE_PHYS  0X3FE00000
+#define GPIO_BASE_PHYS  0X7FE200000
 #define NUM_LEDS 1
 #define LED_PIN 17
 
-static int major;
+static dev_t dev_num;
+static struct cdev gpio_cdev;
+static struct class *gpio_class;
+static struct device *gpio_device;
 static void __iomem *gpio_base;
 
 
@@ -78,31 +83,63 @@ static int __init gpio_driver_init(void)
 {
     pr_info("GPIO Driver Initialized\n");
 
-    major = register_chrdev(0, DEVICE_NAME, &gpio_fops);
-    if (major < 0) {
-        pr_alert("Failed to register GPIO device\n");
-        return major;
+    if (alloc_chrdev_region(&dev_num, 0, 1, DEVICE_NAME) < 0) {
+        pr_alert("Failed to allocate chrdev region\n");
+        return -1;
+    }
+
+    cdev_init(&gpio_cdev, &gpio_fops);
+    gpio_cdev.owner = THIS_MODULE;
+    if (cdev_add(&gpio_cdev, dev_num, 1) < 0) {
+        pr_alert("Failed to add cdev\n");
+        unregister_chrdev_region(dev_num, 1);
+        return -1;
+    }
+
+    gpio_class = class_create(DEVICE_NAME);
+    if (IS_ERR(gpio_class)) {
+        pr_alert("Failed to create class\n");
+        cdev_del(&gpio_cdev);
+        unregister_chrdev_region(dev_num, 1);
+        return PTR_ERR(gpio_class);
+    }
+
+    gpio_device = device_create(gpio_class, NULL, dev_num, NULL, DEVICE_NAME);
+    if (IS_ERR(gpio_device)) {
+        pr_alert("Failed to create device\n");
+        class_destroy(gpio_class);
+        cdev_del(&gpio_cdev);
+        unregister_chrdev_region(dev_num, 1);
+        return PTR_ERR(gpio_device);
     }
 
     //mapea los registros gpio en el espacio de direcciones del kernel
     gpio_base = ioremap(GPIO_BASE_PHYS, 0x86);
     if (!gpio_base) {
         pr_alert("Failed to map GPIO memory\n");
-        unregister_chrdev(major, DEVICE_NAME);
+        device_destroy(gpio_class, dev_num);
+        class_destroy(gpio_class);
+        cdev_del(&gpio_cdev);
+        unregister_chrdev_region(dev_num, 1);
         return -ENOMEM;
     }
 
 
     gpio_set_output(LED_PIN);
 
-    pr_info("GPIO Driver loaded. major=%d\n", major);
+    pr_info("GPIO Driver loaded. major=%d minor=%d (/dev/%s)\n",
+        MAJOR(dev_num), MINOR(dev_num), DEVICE_NAME);
     return 0;
 }
 
 static void __exit gpio_driver_exit(void){
     gpio_write(LED_PIN, 0);
     iounmap(gpio_base);
-    unregister_chrdev(major, DEVICE_NAME);
+
+    device_destroy(gpio_class, dev_num);
+    class_destroy(gpio_class);
+    cdev_del(&gpio_cdev);
+    unregister_chrdev_region(dev_num, 1);
 
     pr_info("GPIO Driver Exited\n");
 }
