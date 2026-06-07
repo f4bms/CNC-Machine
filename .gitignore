@@ -1,0 +1,96 @@
+# Executables
+Proyecto2/cliente/cliente
+Proyecto2/servidor/servidor
+Proyecto2/mpi/mpi_processor
+Proyecto2/**/a.out
+*.bin
+*.png
+*.elf
+a.out
+
+# Generated images and binary outputs
+Proyecto2/img/
+
+# Linux kernel module build artifacts
+Proyecto2/*.ko
+Proyecto2/*.mod
+Proyecto2/*.mod.c
+Proyecto2/*.mod.o
+Proyecto2/*.o
+Proyecto2/.*.cmd
+Proyecto2/Module.symvers
+Proyecto2/modules.order
+Proyecto2/.module-common.o
+
+# OpenMPI / MPI
+*.openmpi/
+~/.openmpi/
+hostfile
+machinefile
+*.rankfile
+*.err
+*.out
+
+# C build artifacts
+*.o
+*.a
+*.so
+*.so.*
+*.d
+
+# Compiled kernel modules (general)
+*.ko
+*.mod
+*.mod.c
+
+# Build directories
+build/
+dist/
+out/
+
+# Editor and IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+*.bak
+
+# OS-generated files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Debug output
+core
+core.*
+vgcore.*
+
+# Build artefacts for Linux kernel modules
+*.o
+*.ko
+*.mod
+*.mod.c
+*.mod.o
+
+# Kbuild generated files
+Module.symvers
+modules.order
+
+# Misc
+*.cmd
+.tmp_versions/
+
+# Keep source + Makefile
+!Proyecto2/driver.c
+!Proyecto2/driver_usage.c
+!Proyecto2/Makefile
+
+# But ignore everything else under Proyecto2 (except the negations above)
+Proyecto2/*
+
+# Editor/OS noise
+.vscode/
+*.swp
+*~
+.DS_Store
