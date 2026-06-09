@@ -1,3 +1,4 @@
+// Construye un grafo topológico del esqueleto del PCB.
 #include "grafo.h"
 
 #include <opencv2/opencv.hpp>
@@ -13,6 +14,7 @@ static int key_pixel(
     int cols
 )
 {
+    // Codifica una coordenada 2D como clave lineal para buscar nodos rápido.
     return y * cols + x;
 }
 
@@ -33,6 +35,7 @@ static std::vector<cv::Point> vecinos_activos(
     const cv::Point& p
 )
 {
+    // Devuelve los vecinos activos alrededor de un píxel del esqueleto.
     std::vector<cv::Point> vecinos;
 
     for(int dy = -1; dy <= 1; dy++)
@@ -66,6 +69,7 @@ static int contar_vecinos(
     int x
 )
 {
+    // Cuenta cuántos vecinos activos rodean un píxel para detectar nodos.
     int count = 0;
 
     for(int dy=-1; dy<=1; dy++)
@@ -96,6 +100,7 @@ Grafo generar_grafo(
     const cv::Mat& skeleton
 )
 {
+    // Un nodo es un extremo o una bifurcación; luego se recorren las trayectorias entre nodos.
     Grafo g;
 
     std::map<int,int> pixel_to_node;
@@ -134,6 +139,7 @@ Grafo generar_grafo(
         }
     }
 
+    // Cada nodo se expande para seguir la línea hasta llegar al siguiente nodo.
     for(const auto& nodo : g.nodos)
     {
         const cv::Point inicio = nodo.punto;
@@ -146,6 +152,7 @@ Grafo generar_grafo(
 
         for(const auto& primer : vecinos)
         {
+            // La trayectoria arranca en el nodo actual y avanza píxel a píxel.
             std::vector<cv::Point> trayectoria;
 
             trayectoria.push_back(
@@ -161,6 +168,7 @@ Grafo generar_grafo(
 
             int destino_id = -1;
 
+            // El límite de guard evita ciclos infinitos en trazas cerradas o corruptas.
             for(int guard = 0; guard < skeleton.rows * skeleton.cols; guard++)
             {
                 int actual_key =
@@ -244,6 +252,7 @@ void guardar_aristas_debug(
     const char* filename
 )
 {
+    // Escribe un resumen textual de las aristas para revisar el trazado generado.
     FILE* fp = fopen(
         filename,
         "w"

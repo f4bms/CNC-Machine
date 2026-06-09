@@ -59,9 +59,7 @@ int main(
         &size
     );
 
-    /*
-     * Verifica argumentos.
-     */
+    // Verifica que exista al menos una imagen de entrada.
 
     if(argc < 2)
     {
@@ -108,9 +106,7 @@ int main(
     int rows = 0;
     int cols = 0;
 
-    /*
-     * Rank 0 carga imagen completa.
-     */
+    // Rank 0 carga la imagen original y define sus dimensiones.
 
     if(rank == 0)
     {
@@ -141,18 +137,14 @@ int main(
         );
     }
 
-    /*
-     * Todos reciben dimensiones.
-     */
+    // Difunde filas y columnas a todos los ranks.
 
     broadcast_dimensiones(
         rows,
         cols
     );
 
-    /*
-     * Crear distribución MPI.
-     */
+    // Calcula cómo se parte la imagen entre ranks con overlap vertical.
 
     DistribucionMPI dist =
         crear_distribucion(
@@ -169,9 +161,7 @@ int main(
         );
     }
 
-    /*
-     * Distribuir imagen.
-     */
+    // Reparte cada fragmento de la imagen a su rank correspondiente.
 
     int local_rows = 0;
 
@@ -192,9 +182,7 @@ int main(
         local_rows
     );
 
-    /*
-     * Reconstruye imagen local.
-     */
+    // Reconstruye el bloque local como Mat para procesarlo con OpenCV.
 
     cv::Mat local_image(
         local_rows,
@@ -203,19 +191,14 @@ int main(
         local_buffer.data()
     );
 
-    /*
-     * Generación distribuida
-     * de imagen binaria.
-     */
+    // Convierte el fragmento local a binario para detectar pistas del PCB.
 
     cv::Mat local_binary =
         generar_binario(
             local_image
         );
 
-    /*
-     * Debug binario local.
-     */
+    // Guarda binario por rank para depuración.
 
     char filename[64];
 
@@ -230,19 +213,14 @@ int main(
         filename
     );
 
-    /*
-     * Generación distribuida
-     * del esqueleto.
-     */
+    // Esqueletiza el binario local antes del reensamble global.
 
     cv::Mat local_skeleton =
         generar_esqueleto(
             local_binary
         );
 
-    /*
-     * Debug esqueleto local.
-     */
+    // Guarda el esqueleto parcial de cada rank.
 
     sprintf(
         filename,
@@ -255,10 +233,7 @@ int main(
         filename
     );
 
-    /*
-     * Reconstrucción global
-     * del esqueleto.
-     */
+    // Reensambla el esqueleto completo en el rank 0.
 
     cv::Mat final_image;
 
@@ -269,17 +244,11 @@ int main(
         final_image
     );
 
-    /*
-     * Solamente Rank 0
-     * continúa con el análisis
-     * global del PCB.
-     */
+    // Solo rank 0 continúa con el análisis global y la salida CNC.
 
     if(rank == 0)
     {
-        /*
-         * Guardar esqueleto final.
-         */
+        // Guarda el esqueleto global reconstruido.
 
         cv::imwrite(
             "pcb_skeleton.png",
@@ -291,9 +260,7 @@ int main(
             "pcb_skeleton.png\n"
         );
 
-        /*
-         * Generación del grafo.
-         */
+        // Convierte el esqueleto en nodos y aristas topológicas.
 
         Grafo grafo =
             generar_grafo(
@@ -351,6 +318,7 @@ int main(
             "pcb_paths.txt\n"
         );
 
+        // Si se habilita el device, ejecuta el trazado físico en la CNC.
         if(cnc_device != NULL)
         {
             printf(
@@ -384,13 +352,7 @@ int main(
             );
         }
 
-        /*
-         * Próxima etapa:
-         *
-            * Siguiente etapa sugerida:
-            * optimizar orden de paths
-            * para reducir travel.
-         */
+          // Siguiente mejora sugerida: optimizar aún más el orden de rutas.
     }
 
     MPI_Finalize();

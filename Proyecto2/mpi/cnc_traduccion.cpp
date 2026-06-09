@@ -1,3 +1,4 @@
+// Convierte el grafo del PCB en rutas compatibles con cnc_lib.
 #include "cnc_traduccion.h"
 
 #include <algorithm>
@@ -10,6 +11,7 @@ static long long dist2(
     const CNCPoint& b
 )
 {
+    // Distancia cuadrática para ordenar rutas sin usar raíz cuadrada.
     long long dx =
         (long long)a.x -
         (long long)b.x;
@@ -26,6 +28,7 @@ static CNCPoint convertir_punto(
     int scale_steps
 )
 {
+    // Convierte un píxel del PCB a coordenadas de pasos de la CNC.
     CNCPoint out;
     out.x = p.x * scale_steps;
     out.y = p.y * scale_steps;
@@ -37,6 +40,7 @@ std::vector<CNCPathOwned> convertir_grafo_a_cnc_paths(
     int scale_steps
 )
 {
+    // Cada arista del grafo se vuelve una ruta CNC independiente.
     std::vector<CNCPathOwned> paths;
 
     if(scale_steps <= 0)
@@ -74,6 +78,7 @@ void guardar_cnc_paths_debug(
     const char* filename
 )
 {
+    // Guarda las rutas ya escaladas para inspeccionar el orden y sus puntos.
     FILE* fp = fopen(
         filename,
         "w"
@@ -122,6 +127,7 @@ int ejecutar_cnc_paths(
     int speed
 )
 {
+    // Reordena rutas para reducir movimientos con pluma arriba y luego las envía al driver.
     std::vector<CNCPathOwned> plan;
     plan.reserve(paths.size());
 
@@ -132,6 +138,7 @@ int ejecutar_cnc_paths(
 
     CNCPoint cursor = {0, 0};
 
+    // Heurística greedy: toma la siguiente ruta más cercana y la invierte si conviene.
     for(size_t step = 0; step < paths.size(); step++)
     {
         size_t best_idx = paths.size();
@@ -245,6 +252,7 @@ int ejecutar_cnc_paths(
         return ret;
     }
 
+    // Se ejecuta cada ruta ya optimizada sobre la CNC.
     for(size_t i = 0; i < plan.size(); i++)
     {
         const CNCPathOwned& p =

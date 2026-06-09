@@ -6,6 +6,8 @@
 
 #include "tipos.h"
 
+// Divide la imagen entre ranks y coordina scatter/gather con overlap.
+
 DistribucionMPI crear_distribucion(
     int rows,
     int cols,

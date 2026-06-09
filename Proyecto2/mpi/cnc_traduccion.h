@@ -10,10 +10,7 @@ extern "C"
 
 #include "grafo.h"
 
-/*
- * Wrapper para mantener ownership de puntos
- * y adaptarlos a CNCPath (API C).
- */
+// Wrapper para mantener ownership de puntos y adaptarlos a CNCPath (API C).
 typedef struct
 {
     std::vector<CNCPoint> puntos;

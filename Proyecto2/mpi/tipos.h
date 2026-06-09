@@ -3,10 +3,7 @@
 
 #include <vector>
 
-/*
- * Describe cómo se divide una imagen
- * entre los ranks MPI.
- */
+// Describe cómo se divide una imagen entre los ranks MPI.
 typedef struct
 {
     int rows;
@@ -14,23 +11,13 @@ typedef struct
 
     int overlap;
 
-    /*
-     * Filas reales procesadas
-     * por cada rank.
-     *
-     * Incluyen overlap.
-     */
+    // Filas reales procesadas por cada rank, incluyendo overlap.
     std::vector<int> local_rows;
 
-    /*
-     * Filas útiles
-     * (sin overlap).
-     */
+    // Filas útiles sin overlap.
     std::vector<int> useful_rows;
 
-    /*
-     * Scatterv
-     */
+    // Parámetros para MPI_Scatterv.
     std::vector<int> sendcounts;
     std::vector<int> displs;
 

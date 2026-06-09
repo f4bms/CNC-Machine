@@ -6,12 +6,7 @@ cv::Mat generar_binario(
     const cv::Mat& imagen
 )
 {
-    /*
-     * =====================================
-     * Etapa 1
-     * Reducción fuerte de ruido
-     * =====================================
-     */
+    // Etapa 1: reducción fuerte de ruido.
 
     cv::Mat denoised;
 
@@ -23,15 +18,7 @@ cv::Mat generar_binario(
         21
     );
 
-    /*
-     * =====================================
-     * Etapa 2
-     * Threshold adaptativo
-     * =====================================
-     *
-     * Pistas = negro
-     * Fondo  = blanco
-     */
+    // Etapa 2: threshold adaptativo; las pistas quedan negras sobre fondo blanco.
 
     cv::Mat binary;
 
@@ -45,14 +32,7 @@ cv::Mat generar_binario(
         -4
     );
 
-    /*
-     * =====================================
-     * Etapa 3
-     * Apertura ligera
-     * =====================================
-     *
-     * Elimina puntos aislados.
-     */
+    // Etapa 3: apertura ligera para eliminar puntos aislados.
 
     cv::morphologyEx(
         binary,
@@ -64,12 +44,7 @@ cv::Mat generar_binario(
         )
     );
 
-    /*
-     * =====================================
-     * Etapa 4
-     * Apertura adicional
-     * =====================================
-     */
+    // Etapa 4: apertura adicional para limpiar artefactos pequeños.
 
     cv::Mat opened;
 
@@ -86,14 +61,7 @@ cv::Mat generar_binario(
         kernel_open
     );
 
-    /*
-     * =====================================
-     * Etapa 5
-     * Cierre morfológico
-     * =====================================
-     *
-     * Une pequeñas rupturas.
-     */
+    // Etapa 5: cierre morfológico para unir pequeñas rupturas.
 
     cv::Mat closed;
 
@@ -110,12 +78,7 @@ cv::Mat generar_binario(
         kernel_close
     );
 
-    /*
-     * =====================================
-     * Etapa 6
-     * Suavizado
-     * =====================================
-     */
+    // Etapa 6: suavizado previo a la binarización final.
 
     cv::Mat smoothed;
 
@@ -126,12 +89,7 @@ cv::Mat generar_binario(
         0
     );
 
-    /*
-     * =====================================
-     * Etapa 7
-     * Re-binarización
-     * =====================================
-     */
+    // Etapa 7: rebinarización final.
 
     cv::Mat final_binary;
 

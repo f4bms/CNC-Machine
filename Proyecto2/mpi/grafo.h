@@ -32,10 +32,7 @@ Grafo generar_grafo(
     const cv::Mat& skeleton
 );
 
-/*
- * Exporta aristas como texto para depurar
- * la vectorizacion de trayectorias.
- */
+// Exporta aristas como texto para depurar la vectorización de trayectorias.
 void guardar_aristas_debug(
     const Grafo& grafo,
     const char* filename

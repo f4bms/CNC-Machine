@@ -7,6 +7,7 @@
 
 int admin_tareas_ejecutar(const char *ruta_archivo)
 {
+    // Construye el comando mpirun y agrega parámetros CNC opcionales desde el entorno.
     if(ruta_archivo == NULL)
     {
         fprintf(stderr,
@@ -75,6 +76,7 @@ int admin_tareas_ejecutar(const char *ruta_archivo)
         return -1;
     }
 
+    // Se imprime el comando final para que el flujo de servidor a MPI sea trazable.
     printf("\n");
     printf("[ADMIN_TAREAS] Ejecutando MPI\n");
     printf("[ADMIN_TAREAS] %s\n", comando);
