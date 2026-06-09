@@ -15,15 +15,65 @@ int admin_tareas_ejecutar(const char *ruta_archivo)
         return -1;
     }
 
-    char comando[512];
+    char comando[768];
 
-    snprintf(
+    const char* cnc_device = getenv("CNC_DEVICE");
+    const char* cnc_speed = getenv("CNC_SPEED");
+    const char* cnc_scale = getenv("CNC_SCALE");
+
+    int wrote = snprintf(
         comando,
         sizeof(comando),
         "mpirun -np %d ../mpi/mpi_processor %s",
         NUM_PROCESOS_MPI,
         ruta_archivo
     );
+
+    if(wrote < 0 || wrote >= (int)sizeof(comando))
+    {
+        fprintf(stderr,
+                "[ADMIN_TAREAS] Error construyendo comando base MPI\n");
+
+        return -1;
+    }
+
+    if(cnc_device != NULL && cnc_device[0] != '\0')
+    {
+        wrote += snprintf(
+            comando + wrote,
+            sizeof(comando) - (size_t)wrote,
+            " --cnc-device %s",
+            cnc_device
+        );
+    }
+
+    if(cnc_speed != NULL && cnc_speed[0] != '\0')
+    {
+        wrote += snprintf(
+            comando + wrote,
+            sizeof(comando) - (size_t)wrote,
+            " --cnc-speed %s",
+            cnc_speed
+        );
+    }
+
+    if(cnc_scale != NULL && cnc_scale[0] != '\0')
+    {
+        wrote += snprintf(
+            comando + wrote,
+            sizeof(comando) - (size_t)wrote,
+            " --cnc-scale %s",
+            cnc_scale
+        );
+    }
+
+    if(wrote < 0 || wrote >= (int)sizeof(comando))
+    {
+        fprintf(stderr,
+                "[ADMIN_TAREAS] Comando MPI excede buffer\n");
+
+        return -1;
+    }
 
     printf("\n");
     printf("[ADMIN_TAREAS] Ejecutando MPI\n");
