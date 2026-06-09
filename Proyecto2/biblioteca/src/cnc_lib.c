@@ -1,0 +1,409 @@
+/*
+ * cnc_lib.c
+ * Implementación de la biblioteca de control CNC para trazado de PCB.
+ *
+ * Toda comunicación con el hardware pasa por esta biblioteca.
+ * El servidor NUNCA debe abrir /dev/gpio_device directamente.
+ *
+ * Protocolo de comandos hacia el driver (texto plano via write):
+ *   MOVE <x> <y>     - mover a posición absoluta
+ *   RIGHT <steps>    - mover derecha
+ *   LEFT  <steps>    - mover izquierda
+ *   UP    <steps>    - mover arriba
+ *   DOWN  <steps>    - mover abajo
+ *   HOME             - ir al origen (0,0)
+ *   PEN DOWN         - bajar pluma
+ *   PEN UP           - levantar pluma
+ *   SPEED <val>      - configurar velocidad
+ */
+
+#include "cnc_lib.h"
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <fcntl.h>
+#include <unistd.h>
+#include <errno.h>
+
+/* =========================================================================
+ * Función interna: escribe directamente al fd del driver
+ * ========================================================================= */
+
+/*
+ * _cnc_send_cmd()
+ * Función privada. Escribe el string `cmd` al file descriptor del driver.
+ * Todos los métodos públicos terminan llamando a esta función.
+ *
+ * Retorna: CNC_OK si write() tuvo éxito, CNC_ERR_WRITE en caso contrario.
+ */
+static int _cnc_send_cmd(CNCHandle *handle, const char *cmd)
+{
+    ssize_t written;
+    size_t len;
+
+    len = strlen(cmd);
+    written = write(handle->fd, cmd, len);
+
+    if (written < 0)
+    {
+        /* Imprimimos el error del sistema operativo para ayudar al debug */
+        fprintf(stderr, "[cnc_lib] write() falló: %s (cmd='%s')\n",
+                strerror(errno), cmd);
+        return CNC_ERR_WRITE;
+    }
+
+    /* El driver recibió los bytes; log informativo */
+    fprintf(stdout, "[cnc_lib] CMD enviado: %s", cmd);
+
+    return CNC_OK;
+}
+
+/* =========================================================================
+ * Ciclo de vida
+ * ========================================================================= */
+
+int cnc_open(CNCHandle *handle, const char *device)
+{
+    const char *path;
+
+    if (handle == NULL)
+    {
+        return CNC_ERR_INVALID;
+    }
+
+    /* Si no se pasa ruta, usamos el default definido en el header */
+    path = (device != NULL) ? device : CNC_DEVICE_PATH;
+
+    handle->fd = open(path, O_WRONLY);
+    handle->is_open = 0;
+    handle->speed = CNC_DEFAULT_SPEED;
+
+    if (handle->fd < 0)
+    {
+        fprintf(stderr, "[cnc_lib] No se pudo abrir el device '%s': %s\n",
+                path, strerror(errno));
+        return CNC_ERR_OPEN;
+    }
+
+    handle->is_open = 1;
+    fprintf(stdout, "[cnc_lib] Device '%s' abierto correctamente (fd=%d)\n",
+            path, handle->fd);
+
+    return CNC_OK;
+}
+
+int cnc_close(CNCHandle *handle)
+{
+    if (handle == NULL)
+    {
+        return CNC_ERR_INVALID;
+    }
+
+    if (handle->is_open && handle->fd >= 0)
+    {
+        close(handle->fd);
+        handle->fd = -1;
+        handle->is_open = 0;
+        fprintf(stdout, "[cnc_lib] Device cerrado.\n");
+    }
+
+    return CNC_OK;
+}
+
+/* =========================================================================
+ * Movimiento
+ * ========================================================================= */
+
+int cnc_move_to(CNCHandle *handle, int32_t x, int32_t y)
+{
+    char cmd[CNC_CMD_MAX_LEN];
+
+    if (handle == NULL || !handle->is_open)
+    {
+        return CNC_ERR_NOT_OPEN;
+    }
+
+    snprintf(cmd, sizeof(cmd), "MOVE %d %d\n", x, y);
+    return _cnc_send_cmd(handle, cmd);
+}
+
+int cnc_move_right(CNCHandle *handle, int32_t steps)
+{
+    char cmd[CNC_CMD_MAX_LEN];
+
+    if (handle == NULL || !handle->is_open)
+    {
+        return CNC_ERR_NOT_OPEN;
+    }
+
+    if (steps <= 0)
+    {
+        fprintf(stderr, "[cnc_lib] cnc_move_right: steps debe ser > 0\n");
+        return CNC_ERR_INVALID;
+    }
+
+    snprintf(cmd, sizeof(cmd), "RIGHT %d\n", steps);
+    return _cnc_send_cmd(handle, cmd);
+}
+
+int cnc_move_left(CNCHandle *handle, int32_t steps)
+{
+    char cmd[CNC_CMD_MAX_LEN];
+
+    if (handle == NULL || !handle->is_open)
+    {
+        return CNC_ERR_NOT_OPEN;
+    }
+
+    if (steps <= 0)
+    {
+        fprintf(stderr, "[cnc_lib] cnc_move_left: steps debe ser > 0\n");
+        return CNC_ERR_INVALID;
+    }
+
+    snprintf(cmd, sizeof(cmd), "LEFT %d\n", steps);
+    return _cnc_send_cmd(handle, cmd);
+}
+
+int cnc_move_up(CNCHandle *handle, int32_t steps)
+{
+    char cmd[CNC_CMD_MAX_LEN];
+
+    if (handle == NULL || !handle->is_open)
+    {
+        return CNC_ERR_NOT_OPEN;
+    }
+
+    if (steps <= 0)
+    {
+        fprintf(stderr, "[cnc_lib] cnc_move_up: steps debe ser > 0\n");
+        return CNC_ERR_INVALID;
+    }
+
+    snprintf(cmd, sizeof(cmd), "UP %d\n", steps);
+    return _cnc_send_cmd(handle, cmd);
+}
+
+int cnc_move_down(CNCHandle *handle, int32_t steps)
+{
+    char cmd[CNC_CMD_MAX_LEN];
+
+    if (handle == NULL || !handle->is_open)
+    {
+        return CNC_ERR_NOT_OPEN;
+    }
+
+    if (steps <= 0)
+    {
+        fprintf(stderr, "[cnc_lib] cnc_move_down: steps debe ser > 0\n");
+        return CNC_ERR_INVALID;
+    }
+
+    snprintf(cmd, sizeof(cmd), "DOWN %d\n", steps);
+    return _cnc_send_cmd(handle, cmd);
+}
+
+int cnc_home(CNCHandle *handle)
+{
+    if (handle == NULL || !handle->is_open)
+    {
+        return CNC_ERR_NOT_OPEN;
+    }
+
+    return _cnc_send_cmd(handle, "HOME\n");
+}
+
+/* =========================================================================
+ * Control de la pluma
+ * ========================================================================= */
+
+int cnc_pen_down(CNCHandle *handle)
+{
+    if (handle == NULL || !handle->is_open)
+    {
+        return CNC_ERR_NOT_OPEN;
+    }
+
+    return _cnc_send_cmd(handle, "PEN DOWN\n");
+}
+
+int cnc_pen_up(CNCHandle *handle)
+{
+    if (handle == NULL || !handle->is_open)
+    {
+        return CNC_ERR_NOT_OPEN;
+    }
+
+    return _cnc_send_cmd(handle, "PEN UP\n");
+}
+
+/* =========================================================================
+ * Trazado de ruta completa
+ * ========================================================================= */
+
+int cnc_draw_path(CNCHandle *handle, const CNCPath *path)
+{
+    size_t i;
+    int ret;
+
+    if (handle == NULL || !handle->is_open)
+    {
+        return CNC_ERR_NOT_OPEN;
+    }
+
+    if (path == NULL || path->points == NULL || path->count == 0)
+    {
+        fprintf(stderr, "[cnc_lib] cnc_draw_path: ruta inválida o vacía\n");
+        return CNC_ERR_INVALID;
+    }
+
+    fprintf(stdout, "[cnc_lib] Iniciando trazado: %zu puntos\n", path->count);
+
+    /* 1. Levantar la pluma antes de moverse al punto inicial */
+    ret = cnc_pen_up(handle);
+    if (ret != CNC_OK)
+        return ret;
+
+    /* 2. Moverse al primer punto sin trazar */
+    ret = cnc_move_to(handle, path->points[0].x, path->points[0].y);
+    if (ret != CNC_OK)
+        return ret;
+
+    /* 3. Bajar la pluma para iniciar el trazado */
+    ret = cnc_pen_down(handle);
+    if (ret != CNC_OK)
+        return ret;
+
+    /* 4. Recorrer el resto de los puntos trazando */
+    for (i = 1; i < path->count; i++)
+    {
+        ret = cnc_move_to(handle, path->points[i].x, path->points[i].y);
+        if (ret != CNC_OK)
+        {
+            /* Si falla en medio del trazado, intentamos levantar la pluma
+             * antes de retornar el error para no dañar el PCB */
+            cnc_pen_up(handle);
+            fprintf(stderr, "[cnc_lib] Error en punto %zu del trazado\n", i);
+            return ret;
+        }
+    }
+
+    /* 5. Levantar la pluma al finalizar el trazado */
+    ret = cnc_pen_up(handle);
+    if (ret != CNC_OK)
+        return ret;
+
+    fprintf(stdout, "[cnc_lib] Trazado completado (%zu puntos)\n", path->count);
+    return CNC_OK;
+}
+
+/* =========================================================================
+ * Configuración
+ * ========================================================================= */
+
+int cnc_set_speed(CNCHandle *handle, int speed)
+{
+    char cmd[CNC_CMD_MAX_LEN];
+    int ret;
+
+    if (handle == NULL || !handle->is_open)
+    {
+        return CNC_ERR_NOT_OPEN;
+    }
+
+    if (speed <= 0)
+    {
+        fprintf(stderr, "[cnc_lib] cnc_set_speed: velocidad debe ser > 0\n");
+        return CNC_ERR_INVALID;
+    }
+
+    snprintf(cmd, sizeof(cmd), "SPEED %d\n", speed);
+    ret = _cnc_send_cmd(handle, cmd);
+
+    if (ret == CNC_OK)
+    {
+        handle->speed = speed; /* Guardamos el valor actual en el handle */
+    }
+
+    return ret;
+}
+
+/* =========================================================================
+ * I/O raw
+ * ========================================================================= */
+
+int cnc_write(CNCHandle *handle, const char *cmd)
+{
+    if (handle == NULL || !handle->is_open)
+    {
+        return CNC_ERR_NOT_OPEN;
+    }
+
+    if (cmd == NULL || strlen(cmd) == 0)
+    {
+        return CNC_ERR_INVALID;
+    }
+
+    if (strlen(cmd) > CNC_CMD_MAX_LEN)
+    {
+        fprintf(stderr, "[cnc_lib] cnc_write: comando demasiado largo (max %d)\n",
+                CNC_CMD_MAX_LEN);
+        return CNC_ERR_INVALID;
+    }
+
+    return _cnc_send_cmd(handle, cmd);
+}
+
+int cnc_read(CNCHandle *handle, char *buf, size_t len)
+{
+    ssize_t n;
+
+    if (handle == NULL || !handle->is_open)
+    {
+        return CNC_ERR_NOT_OPEN;
+    }
+
+    if (buf == NULL || len == 0)
+    {
+        return CNC_ERR_INVALID;
+    }
+
+    /*
+     * Por ahora el driver solo tiene dev_write implementado.
+     * Esta función queda lista para cuando se agregue dev_read al driver.
+     * Reabrimos el fd con O_RDONLY para la lectura puntual.
+     */
+    n = read(handle->fd, buf, len - 1);
+    if (n < 0)
+    {
+        fprintf(stderr, "[cnc_lib] read() falló: %s\n", strerror(errno));
+        return CNC_ERR_WRITE; /* Reutilizamos el código de error de I/O */
+    }
+
+    buf[n] = '\0';
+    return (int)n;
+}
+
+/* =========================================================================
+ * Utilidades
+ * ========================================================================= */
+
+const char *cnc_strerror(int error_code)
+{
+    switch (error_code)
+    {
+    case CNC_OK:
+        return "OK - Sin error";
+    case CNC_ERR_NOT_OPEN:
+        return "Device no abierto (llamar cnc_open primero)";
+    case CNC_ERR_WRITE:
+        return "Error al escribir al driver";
+    case CNC_ERR_INVALID:
+        return "Parámetros inválidos";
+    case CNC_ERR_OPEN:
+        return "No se pudo abrir el device driver";
+    default:
+        return "Error desconocido";
+    }
+}
