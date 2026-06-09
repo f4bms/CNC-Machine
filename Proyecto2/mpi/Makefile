@@ -6,8 +6,6 @@ SRC = \
 	main.cpp \
 	distribucion.cpp \
 	procesamiento_imagen.cpp \
-	contornos.cpp \
-	vectorizacion.cpp \
 	esqueleto.cpp
 
 OBJ = $(SRC:.cpp=.o)
@@ -20,7 +18,10 @@ CXXFLAGS = -Wall -Wextra -O2
 all: $(TARGET)
 
 $(TARGET): $(OBJ)
-	$(CXX) $(OBJ) -o $(TARGET) $(OPENCV_LIBS)
+	$(CXX) \
+	$(OBJ) \
+	-o $(TARGET) \
+	$(OPENCV_LIBS)
 
 %.o: %.cpp
 	$(CXX) \
@@ -30,7 +31,9 @@ $(TARGET): $(OBJ)
 	-o $@
 
 clean:
-	rm -f $(OBJ) $(TARGET)
+	rm -f \
+	$(OBJ) \
+	$(TARGET)
 
 rebuild: clean all
 

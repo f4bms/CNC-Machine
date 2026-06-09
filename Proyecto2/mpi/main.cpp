@@ -9,8 +9,6 @@
 #include "tipos.h"
 #include "distribucion.h"
 #include "procesamiento_imagen.h"
-#include "contornos.h"
-#include "vectorizacion.h"
 #include "esqueleto.h"
 
 #define OVERLAP_ROWS 10
@@ -157,163 +155,94 @@ int main(
     );
 
     /*
-     * Procesamiento local.
+     * Generación distribuida
+     * de imagen binaria.
      */
 
-    cv::Mat processed =
-        procesar_fragmento(
+    cv::Mat local_binary =
+        generar_binario(
             local_image
         );
 
-    char dbg_name[64];
-
-    sprintf(
-        dbg_name,
-        "rank_%d_binary.png",
-        rank
-    );
-
-    cv::imwrite(
-        dbg_name,
-        processed
-    );
-
     /*
-     * Debug por rank.
+     * Debug binario local.
      */
 
     char filename[64];
 
     sprintf(
         filename,
-        "rank_%d_processed.png",
+        "rank_%d_binary.png",
         rank
     );
 
     guardar_imagen_debug(
-        processed,
+        local_binary,
         filename
     );
 
     /*
-     * Reconstrucción global.
+     * Generación distribuida
+     * del esqueleto.
+     */
+
+    cv::Mat local_skeleton =
+        generar_esqueleto(
+            local_binary
+        );
+
+    /*
+     * Debug esqueleto local.
+     */
+
+    sprintf(
+        filename,
+        "rank_%d_skeleton.png",
+        rank
+    );
+
+    guardar_imagen_debug(
+        local_skeleton,
+        filename
+    );
+
+    /*
+     * Reconstrucción global
+     * del esqueleto.
      */
 
     cv::Mat final_image;
 
     gather_fragmento(
-        processed,
+        local_skeleton,
         dist,
         rank,
         final_image
     );
 
     /*
-     * Solamente Rank 0 continúa
-     * con análisis posterior.
+     * Solamente Rank 0
+     * guarda el resultado final.
      */
 
     if(rank == 0)
     {
-        /*
-         * Imagen binaria reconstruida.
-         */
-
         cv::imwrite(
-            "pcb_binary.png",
+            "pcb_skeleton.png",
             final_image
         );
 
-        cv::Mat skeleton =
-            generar_esqueleto(
-                final_image
-            );
-
-        cv::imwrite(
-            "pcb_skeleton.png",
-            skeleton
-        );
-
         printf(
-            "Esqueleto guardado:\n"
+            "\nEsqueleto distribuido guardado:\n"
             "pcb_skeleton.png\n"
         );
 
-        printf(
-            "\nImagen binaria guardada:\n"
-            "pcb_binary.png\n"
-        );
-
         /*
-         * OpenCV encuentra objetos blancos
-         * sobre fondo negro.
+         * Próxima etapa:
          *
-         * La salida actual del procesamiento es:
-         *
-         * Fondo  = blanco
-         * Pistas = negro
-         *
-         * Por eso se invierte.
+         * Construcción del grafo
+         * a partir de final_image.
          */
-
-        cv::Mat contours_input;
-
-        cv::bitwise_not(
-            final_image,
-            contours_input
-        );
-
-        cv::imwrite(
-            "pcb_inverted.png",
-            contours_input
-        );
-
-        /*
-         * Extracción de contornos.
-         */
-
-        auto contornos =
-            extraer_contornos(
-                contours_input
-            );
-
-        printf(
-            "Contornos encontrados: %lu\n",
-            (unsigned long)
-            contornos.size()
-        );
-
-        guardar_contornos_debug(
-            contours_input,
-            contornos,
-            "pcb_contours.png"
-        );
-
-        /*
-         * Simplificación geométrica.
-         */
-
-        auto vectores =
-            vectorizar_contornos(
-                contornos,
-                0.001
-            );
-
-        guardar_vectores_debug(
-            contours_input.size(),
-            vectores,
-            "pcb_vectors.png"
-        );
-
-        printf(
-            "Contornos guardados:\n"
-            "pcb_contours.png\n"
-        );
-
-        printf(
-            "Vectores guardados:\n"
-            "pcb_vectors.png\n"
-        );
     }
 
     MPI_Finalize();

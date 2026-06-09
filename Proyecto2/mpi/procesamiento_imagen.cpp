@@ -2,40 +2,35 @@
 
 #include <opencv2/opencv.hpp>
 
-cv::Mat procesar_fragmento(
+cv::Mat generar_binario(
     const cv::Mat& imagen
 )
 {
     /*
      * =====================================
      * Etapa 1
-     * Eliminación de ruido impulsivo
+     * Reducción fuerte de ruido
      * =====================================
      */
 
     cv::Mat denoised;
 
-    /*
-    * Filtro fuerte preservador de bordes.
-    * Mejor que medianBlur para PCB fotografiada.
-    */
-
     cv::fastNlMeansDenoising(
         imagen,
         denoised,
-        30,   // strength luma
-        7,    // template window
-        21    // search window
+        30,
+        7,
+        21
     );
 
     /*
      * =====================================
      * Etapa 2
-     * Binarización adaptativa
+     * Threshold adaptativo
      * =====================================
      *
-     * Funciona mejor que threshold fijo
-     * para fotografías tomadas con celular.
+     * Pistas = negro
+     * Fondo  = blanco
      */
 
     cv::Mat binary;
@@ -50,23 +45,30 @@ cv::Mat procesar_fragmento(
         -4
     );
 
+    /*
+     * =====================================
+     * Etapa 3
+     * Apertura ligera
+     * =====================================
+     *
+     * Elimina puntos aislados.
+     */
+
     cv::morphologyEx(
         binary,
         binary,
         cv::MORPH_OPEN,
         cv::getStructuringElement(
             cv::MORPH_RECT,
-            cv::Size(2,2)
+            cv::Size(2, 2)
         )
     );
 
     /*
      * =====================================
-     * Etapa 3
-     * Apertura morfológica
+     * Etapa 4
+     * Apertura adicional
      * =====================================
-     *
-     * Elimina pequeños puntos aislados.
      */
 
     cv::Mat opened;
@@ -86,12 +88,11 @@ cv::Mat procesar_fragmento(
 
     /*
      * =====================================
-     * Etapa 4
+     * Etapa 5
      * Cierre morfológico
      * =====================================
      *
-     * Une pequeñas discontinuidades
-     * en las pistas.
+     * Une pequeñas rupturas.
      */
 
     cv::Mat closed;
@@ -111,12 +112,9 @@ cv::Mat procesar_fragmento(
 
     /*
      * =====================================
-     * Etapa 5
-     * Suavizado ligero de bordes
+     * Etapa 6
+     * Suavizado
      * =====================================
-     *
-     * Reduce pequeñas irregularidades
-     * antes de extraer contornos.
      */
 
     cv::Mat smoothed;
@@ -130,12 +128,9 @@ cv::Mat procesar_fragmento(
 
     /*
      * =====================================
-     * Etapa 6
+     * Etapa 7
      * Re-binarización
      * =====================================
-     *
-     * GaussianBlur introduce niveles
-     * intermedios de gris.
      */
 
     cv::Mat final_binary;
