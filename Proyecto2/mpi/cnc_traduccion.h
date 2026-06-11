@@ -17,19 +17,27 @@ typedef struct
 } CNCPathOwned;
 
 std::vector<CNCPathOwned> convertir_grafo_a_cnc_paths(
-    const Grafo& grafo,
-    int scale_steps
-);
+    const Grafo &grafo,
+    int scale_steps);
 
 void guardar_cnc_paths_debug(
-    const std::vector<CNCPathOwned>& paths,
-    const char* filename
-);
+    const std::vector<CNCPathOwned> &paths,
+    const char *filename);
+
+// Genera el plan optimizado de rutas y guarda las instrucciones CNC sin ejecutarlas
+void generar_instrucciones_cnc_debug(
+    const std::vector<CNCPathOwned> &paths,
+    int speed,
+    const char *filename);
+
+// Guarda los paths después de optimizar su orden
+void guardar_cnc_paths_optimized(
+    const std::vector<CNCPathOwned> &paths,
+    const char *filename);
 
 int ejecutar_cnc_paths(
-    const std::vector<CNCPathOwned>& paths,
-    const char* device,
-    int speed
-);
+    const std::vector<CNCPathOwned> &paths,
+    const char *device,
+    int speed);
 
 #endif

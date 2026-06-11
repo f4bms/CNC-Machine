@@ -21,16 +21,15 @@
 #define DEFAULT_CNC_SCALE 1
 
 static int parse_int(
-    const char* s,
-    int fallback
-)
+    const char *s,
+    int fallback)
 {
-    if(s == NULL)
+    if (s == NULL)
         return fallback;
 
     int v = atoi(s);
 
-    if(v <= 0)
+    if (v <= 0)
         return fallback;
 
     return v;
@@ -38,66 +37,59 @@ static int parse_int(
 
 int main(
     int argc,
-    char *argv[]
-)
+    char *argv[])
 {
     MPI_Init(
         &argc,
-        &argv
-    );
+        &argv);
 
     int rank;
     int size;
 
     MPI_Comm_rank(
         MPI_COMM_WORLD,
-        &rank
-    );
+        &rank);
 
     MPI_Comm_size(
         MPI_COMM_WORLD,
-        &size
-    );
+        &size);
 
     // Verifica que exista al menos una imagen de entrada.
 
-    if(argc < 2)
+    if (argc < 2)
     {
-        if(rank == 0)
+        if (rank == 0)
         {
             printf(
                 "Uso:\n"
-                "./mpi_processor imagen.png [--cnc-device /dev/gpio_device] [--cnc-speed 200] [--cnc-scale 1]\n"
-            );
+                "./mpi_processor imagen.png [--cnc-device /dev/gpio_device] [--cnc-speed 200] [--cnc-scale 1]\n");
         }
 
         MPI_Finalize();
         return 1;
     }
 
-    const char* cnc_device = NULL;
+    const char *cnc_device = NULL;
     int cnc_speed = DEFAULT_CNC_SPEED;
     int cnc_scale = DEFAULT_CNC_SCALE;
 
-    for(int i = 2; i < argc; i++)
+    for (int i = 2; i < argc; i++)
     {
-        if(strcmp(argv[i], "--cnc-device") == 0 && i + 1 < argc)
+        if (strcmp(argv[i], "--cnc-device") == 0 && i + 1 < argc)
         {
             cnc_device = argv[++i];
         }
-        else if(strcmp(argv[i], "--cnc-speed") == 0 && i + 1 < argc)
+        else if (strcmp(argv[i], "--cnc-speed") == 0 && i + 1 < argc)
         {
             cnc_speed = parse_int(
                 argv[++i],
-                DEFAULT_CNC_SPEED
-            );
+                DEFAULT_CNC_SPEED);
         }
-        else if(strcmp(argv[i], "--cnc-scale") == 0 && i + 1 < argc)
+        else if (strcmp(argv[i], "--cnc-scale") == 0 && i + 1 < argc)
         {
             cnc_scale = parse_int(
                 argv[++i],
-                DEFAULT_CNC_SCALE
-            );
+                DEFAULT_CNC_SCALE);
         }
     }
 
@@ -108,23 +100,20 @@ int main(
 
     // Rank 0 carga la imagen original y define sus dimensiones.
 
-    if(rank == 0)
+    if (rank == 0)
     {
         image = cv::imread(
             argv[1],
-            cv::IMREAD_GRAYSCALE
-        );
+            cv::IMREAD_GRAYSCALE);
 
-        if(image.empty())
+        if (image.empty())
         {
             printf(
-                "Error cargando imagen\n"
-            );
+                "Error cargando imagen\n");
 
             MPI_Abort(
                 MPI_COMM_WORLD,
-                1
-            );
+                1);
         }
 
         rows = image.rows;
@@ -133,16 +122,14 @@ int main(
         printf(
             "\nImagen cargada: %d x %d\n",
             rows,
-            cols
-        );
+            cols);
     }
 
     // Difunde filas y columnas a todos los ranks.
 
     broadcast_dimensiones(
         rows,
-        cols
-    );
+        cols);
 
     // Calcula cómo se parte la imagen entre ranks con overlap vertical.
 
@@ -151,14 +138,12 @@ int main(
             rows,
             cols,
             size,
-            OVERLAP_ROWS
-        );
+            OVERLAP_ROWS);
 
-    if(rank == 0)
+    if (rank == 0)
     {
         imprimir_distribucion(
-            dist
-        );
+            dist);
     }
 
     // Reparte cada fragmento de la imagen a su rank correspondiente.
@@ -173,14 +158,12 @@ int main(
         dist,
         rank,
         local_rows,
-        local_buffer
-    );
+        local_buffer);
 
     printf(
         "Rank %d recibio %d filas\n",
         rank,
-        local_rows
-    );
+        local_rows);
 
     // Reconstruye el bloque local como Mat para procesarlo con OpenCV.
 
@@ -188,15 +171,13 @@ int main(
         local_rows,
         cols,
         CV_8UC1,
-        local_buffer.data()
-    );
+        local_buffer.data());
 
     // Convierte el fragmento local a binario para detectar pistas del PCB.
 
     cv::Mat local_binary =
         generar_binario(
-            local_image
-        );
+            local_image);
 
     // Guarda binario por rank para depuración.
 
@@ -205,33 +186,28 @@ int main(
     sprintf(
         filename,
         "rank_%d_binary.png",
-        rank
-    );
+        rank);
 
     guardar_imagen_debug(
         local_binary,
-        filename
-    );
+        filename);
 
     // Esqueletiza el binario local antes del reensamble global.
 
     cv::Mat local_skeleton =
         generar_esqueleto(
-            local_binary
-        );
+            local_binary);
 
     // Guarda el esqueleto parcial de cada rank.
 
     sprintf(
         filename,
         "rank_%d_skeleton.png",
-        rank
-    );
+        rank);
 
     guardar_imagen_debug(
         local_skeleton,
-        filename
-    );
+        filename);
 
     // Reensambla el esqueleto completo en el rank 0.
 
@@ -241,118 +217,113 @@ int main(
         local_skeleton,
         dist,
         rank,
-        final_image
-    );
+        final_image);
 
     // Solo rank 0 continúa con el análisis global y la salida CNC.
 
-    if(rank == 0)
+    if (rank == 0)
     {
         // Guarda el esqueleto global reconstruido.
 
         cv::imwrite(
             "pcb_skeleton.png",
-            final_image
-        );
+            final_image);
 
         printf(
             "\nEsqueleto distribuido guardado:\n"
-            "pcb_skeleton.png\n"
-        );
+            "pcb_skeleton.png\n");
 
         // Convierte el esqueleto en nodos y aristas topológicas.
 
         Grafo grafo =
             generar_grafo(
-                final_image
-            );
+                final_image);
 
         guardar_grafo_debug(
             final_image,
             grafo,
-            "pcb_graph.png"
-        );
+            "pcb_graph.png");
 
         guardar_aristas_debug(
             grafo,
-            "pcb_edges.txt"
-        );
+            "pcb_edges.txt");
 
         std::vector<CNCPathOwned> cnc_paths =
             convertir_grafo_a_cnc_paths(
                 grafo,
-                cnc_scale
-            );
+                cnc_scale);
 
         guardar_cnc_paths_debug(
             cnc_paths,
-            "pcb_paths.txt"
-        );
+            "pcb_paths.txt");
+
+        // Guarda los paths después de optimizar su orden.
+        guardar_cnc_paths_optimized(
+            cnc_paths,
+            "pcb_paths_optimized.txt");
+
+        // Genera las instrucciones CNC optimizadas.
+        generar_instrucciones_cnc_debug(
+            cnc_paths,
+            cnc_speed,
+            "pcb_cnc_instructions.txt");
 
         printf(
             "Nodos detectados: %lu\n",
             (unsigned long)
-            grafo.nodos.size()
-        );
+                grafo.nodos.size());
 
         printf(
             "Aristas detectadas: %lu\n",
             (unsigned long)
-            grafo.aristas.size()
-        );
+                grafo.aristas.size());
 
         printf(
             "CNC paths generados: %lu\n",
             (unsigned long)
-            cnc_paths.size()
-        );
+                cnc_paths.size());
 
         printf(
             "Grafo guardado:\n"
-            "pcb_graph.png\n"
-        );
+            "pcb_graph.png\n");
 
         printf(
             "Debug rutas guardado:\n"
             "pcb_edges.txt\n"
             "pcb_paths.txt\n"
-        );
+            "pcb_paths_optimized.txt\n"
+            "pcb_cnc_instructions.txt\n");
 
         // Si se habilita el device, ejecuta el trazado físico en la CNC.
-        if(cnc_device != NULL)
+        if (cnc_device != NULL)
         {
             printf(
                 "Ejecutando cnc_lib en device: %s\n",
-                cnc_device
-            );
+                cnc_device);
 
             int cnc_ret = ejecutar_cnc_paths(
                 cnc_paths,
                 cnc_device,
-                cnc_speed
-            );
+                cnc_speed);
 
-            if(cnc_ret != CNC_OK)
+            if (cnc_ret != CNC_OK)
             {
                 printf(
-                    "Error ejecutando cnc_lib\n"
-                );
+                    "Error ejecutando cnc_lib\n");
             }
             else
             {
                 printf(
-                    "Trazado CNC completado\n"
-                );
+                    "Trazado CNC completado\n");
             }
         }
         else
         {
             printf(
-                "Ejecucion de hardware omitida (use --cnc-device para habilitar)\n"
-            );
+                "Ejecucion de hardware omitida (use --cnc-device para habilitar)\n");
         }
 
-          // Siguiente mejora sugerida: optimizar aún más el orden de rutas.
+        // Siguiente mejora sugerida: optimizar aún más el orden de rutas.
     }
 
     MPI_Finalize();

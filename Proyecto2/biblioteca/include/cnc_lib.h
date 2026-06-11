@@ -111,39 +111,6 @@ int cnc_close(CNCHandle *handle);
 int cnc_move_to(CNCHandle *handle, int32_t x, int32_t y);
 
 /*
- * cnc_move_right()
- * Desplaza el cabezal hacia la derecha un número de pasos.
- * Equivalente a incrementar X en `steps` unidades.
- *
- * Retorna: CNC_OK, CNC_ERR_NOT_OPEN o CNC_ERR_WRITE.
- */
-int cnc_move_right(CNCHandle *handle, int32_t steps);
-
-/*
- * cnc_move_left()
- * Desplaza el cabezal hacia la izquierda `steps` pasos.
- *
- * Retorna: CNC_OK, CNC_ERR_NOT_OPEN o CNC_ERR_WRITE.
- */
-int cnc_move_left(CNCHandle *handle, int32_t steps);
-
-/*
- * cnc_move_up()
- * Desplaza el cabezal hacia arriba `steps` pasos (incrementa Y).
- *
- * Retorna: CNC_OK, CNC_ERR_NOT_OPEN o CNC_ERR_WRITE.
- */
-int cnc_move_up(CNCHandle *handle, int32_t steps);
-
-/*
- * cnc_move_down()
- * Desplaza el cabezal hacia abajo `steps` pasos (decrementa Y).
- *
- * Retorna: CNC_OK, CNC_ERR_NOT_OPEN o CNC_ERR_WRITE.
- */
-int cnc_move_down(CNCHandle *handle, int32_t steps);
-
-/*
  * cnc_home()
  * Envía el cabezal a la posición de origen (0, 0).
  * Útil para inicializar o resetear la posición antes de una tarea.
