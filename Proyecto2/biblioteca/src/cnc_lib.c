@@ -14,7 +14,6 @@
  *   HOME             - ir al origen (0,0)
  *   PEN DOWN         - bajar pluma
  *   PEN UP           - levantar pluma
- *   SPEED <val>      - configurar velocidad
  */
 
 #include "cnc_lib.h"
@@ -77,7 +76,6 @@ int cnc_open(CNCHandle *handle, const char *device)
 
     handle->fd = open(path, O_WRONLY);
     handle->is_open = 0;
-    handle->speed = CNC_DEFAULT_SPEED;
 
     if (handle->fd < 0)
     {
@@ -298,36 +296,6 @@ int cnc_draw_path(CNCHandle *handle, const CNCPath *path)
     return CNC_OK;
 }
 
-/* =========================================================================
- * Configuración
- * ========================================================================= */
-
-int cnc_set_speed(CNCHandle *handle, int speed)
-{
-    char cmd[CNC_CMD_MAX_LEN];
-    int ret;
-
-    if (handle == NULL || !handle->is_open)
-    {
-        return CNC_ERR_NOT_OPEN;
-    }
-
-    if (speed <= 0)
-    {
-        fprintf(stderr, "[cnc_lib] cnc_set_speed: velocidad debe ser > 0\n");
-        return CNC_ERR_INVALID;
-    }
-
-    snprintf(cmd, sizeof(cmd), "SPEED %d\n", speed);
-    ret = _cnc_send_cmd(handle, cmd);
-
-    if (ret == CNC_OK)
-    {
-        handle->speed = speed; /* Guardamos el valor actual en el handle */
-    }
-
-    return ret;
-}
 
 /* =========================================================================
  * I/O raw

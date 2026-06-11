@@ -28,8 +28,7 @@ void guardar_cnc_paths_debug(
 
 int ejecutar_cnc_paths(
     const std::vector<CNCPathOwned>& paths,
-    const char* device,
-    int speed
+    const char* device
 );
 
 #endif

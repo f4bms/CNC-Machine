@@ -21,8 +21,7 @@
 
 #define CNC_DEVICE_PATH "/dev/gpio_device" /* Ruta al char device del driver */
 #define CNC_CMD_MAX_LEN 64                 /* Longitud máxima de un comando   */
-#define CNC_DEFAULT_SPEED 100              /* Velocidad por defecto (unidades) */
-#define CNC_DEFAULT_ACCEL 50               /* Aceleración por defecto          */
+
 
 /* =========================================================================
  * Códigos de retorno
@@ -46,7 +45,6 @@
 typedef struct
 {
     int fd;      /* File descriptor del device  */
-    int speed;   /* Velocidad de movimiento actual */
     int is_open; /* Flag de estado               */
 } CNCHandle;
 
@@ -192,22 +190,6 @@ int cnc_pen_up(CNCHandle *handle);
  * Retorna: CNC_OK, CNC_ERR_NOT_OPEN, CNC_ERR_INVALID o CNC_ERR_WRITE.
  */
 int cnc_draw_path(CNCHandle *handle, const CNCPath *path);
-
-/* =========================================================================
- * API pública — Configuración
- * ========================================================================= */
-
-/*
- * cnc_set_speed()
- * Configura la velocidad de movimiento del motor.
- * Genera el comando "SPEED value" al driver.
- *
- * Parámetros:
- *   speed - valor entero positivo de velocidad
- *
- * Retorna: CNC_OK, CNC_ERR_NOT_OPEN, CNC_ERR_INVALID o CNC_ERR_WRITE.
- */
-int cnc_set_speed(CNCHandle *handle, int speed);
 
 /* =========================================================================
  * API pública — I/O raw (lectura/escritura directa al driver)

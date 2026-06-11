@@ -17,7 +17,6 @@
 #include "cnc_traduccion.h"
 
 #define OVERLAP_ROWS 10
-#define DEFAULT_CNC_SPEED 200
 #define DEFAULT_CNC_SCALE 1
 
 static int parse_int(
@@ -67,7 +66,7 @@ int main(
         {
             printf(
                 "Uso:\n"
-                "./mpi_processor imagen.png [--cnc-device /dev/gpio_device] [--cnc-speed 200] [--cnc-scale 1]\n"
+                "./mpi_processor imagen.png [--cnc-device /dev/gpio_device] [--cnc-scale 1]\n"
             );
         }
 
@@ -76,7 +75,6 @@ int main(
     }
 
     const char* cnc_device = NULL;
-    int cnc_speed = DEFAULT_CNC_SPEED;
     int cnc_scale = DEFAULT_CNC_SCALE;
 
     for(int i = 2; i < argc; i++)
@@ -84,13 +82,6 @@ int main(
         if(strcmp(argv[i], "--cnc-device") == 0 && i + 1 < argc)
         {
             cnc_device = argv[++i];
-        }
-        else if(strcmp(argv[i], "--cnc-speed") == 0 && i + 1 < argc)
-        {
-            cnc_speed = parse_int(
-                argv[++i],
-                DEFAULT_CNC_SPEED
-            );
         }
         else if(strcmp(argv[i], "--cnc-scale") == 0 && i + 1 < argc)
         {
@@ -328,8 +319,7 @@ int main(
 
             int cnc_ret = ejecutar_cnc_paths(
                 cnc_paths,
-                cnc_device,
-                cnc_speed
+                cnc_device
             );
 
             if(cnc_ret != CNC_OK)

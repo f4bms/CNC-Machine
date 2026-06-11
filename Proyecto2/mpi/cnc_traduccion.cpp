@@ -123,8 +123,7 @@ void guardar_cnc_paths_debug(
 
 int ejecutar_cnc_paths(
     const std::vector<CNCPathOwned>& paths,
-    const char* device,
-    int speed
+    const char* device
 )
 {
     // Reordena rutas para reducir movimientos con pluma arriba y luego las envía al driver.
@@ -216,26 +215,6 @@ int ejecutar_cnc_paths(
             cnc_strerror(ret)
         );
         return ret;
-    }
-
-    if(speed > 0)
-    {
-        ret = cnc_set_speed(
-            &handle,
-            speed
-        );
-
-        if(ret != CNC_OK)
-        {
-            fprintf(
-                stderr,
-                "[CNC] cnc_set_speed fallo: %s\n",
-                cnc_strerror(ret)
-            );
-
-            cnc_close(&handle);
-            return ret;
-        }
     }
 
     ret = cnc_home(&handle);
