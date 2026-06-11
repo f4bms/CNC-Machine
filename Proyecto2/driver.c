@@ -4,20 +4,34 @@
 #include <linux/fs.h>
 #include <linux/uaccess.h>
 #include <linux/io.h>
+#include <linux/delay.h>
+
 
 //se puede agregar un class_create y el device create para no tener que yo manuealmente crear el archivo para hablar con el driver
 //ahorita se ocupa usar el mkmod
 
 #define DEVICE_NAME "gpio_device"
 #define GPIO_BASE_PHYS  0xFE200000UL
-#define NUM_LEDS 1
-#define LED_PIN 17
-#define BUTTON_PIN 27
+
+#define GPIO_MAP_SIZE 0XB4
+#define GPIO_PIN_MAX 27
+
+#define WRITE_PIN 17
+#define READ_PIN 27
 
 // offsets GPIO (para GPIO 0-31)
 #define GPSET0_OFFSET 0x1C
 #define GPCLR0_OFFSET 0x28
 #define GPLEV0_OFFSET 0x34
+
+#define BIT_DELAY_TIME 100
+
+// para la cnc se usan:
+
+#define CMD_GOTO 'G'
+#define CMD_DRAW 'D'
+#define CMD_PENUP 'U'
+#define CMD_PENDOWN 'P'
 
 static int major;
 static void __iomem *gpio_base;
@@ -27,21 +41,24 @@ static void __iomem *gpio_base;
 //la raspberry 2 usa 3 bits por pin
 //cada registro de la raspberry controla 10 pines -> hay que moverse entonces en esos registros
 static void gpio_set_output(int pin){
+
+
     unsigned int reg = pin / 10;
     unsigned int shift = (pin % 10) * 3;
     unsigned int value = ioread32(gpio_base + (reg * 4));
 
-    if (pin < 0 || pin > 27) {
+    if (pin < 0 || pin > GPIO_PIN_MAX) {
     pr_alert("gpio_set_output: pin %d invalido\n", pin);
     return;
-}
+    }
 
-    pr_info("config GPIO%d como salida (reg=%u shift=%u)\n", pin, reg, shift);
     value &= ~(7U << shift);
     value |=  (1U << shift);
 
     // Set the GPIO pin to output mode
     iowrite32(value, gpio_base + (reg * 4));
+    pr_info("config GPIO%d como salida (reg=%u shift=%u)\n", pin, reg, shift);
+
 
 }
 
@@ -68,64 +85,130 @@ static void gpio_set_input(int pin)
     shift = (pin % 10) * 3;
     value = ioread32(gpio_base + (reg * 4));
 
-    pr_info("config GPIO%d como entrada (reg=%u shift=%u)\n", pin, reg, shift);
     value &= ~(7U << shift); // 000 = input
     iowrite32(value, gpio_base + (reg * 4));
+    pr_info("config GPIO%d como entrada (reg=%u shift=%u)\n", pin, reg, shift);
+
 }
 
 static int gpio_read(int pin)
 {
     u32 level;
 
-    if (pin < 0 || pin > 31)
+    if (pin < 0 || pin > GPIO_PIN_MAX)
         return 0;
 
     level = ioread32(gpio_base + GPLEV0_OFFSET);
     return (level & (1u << pin)) ? 1 : 0;
 }
 
+static void send_byte(u8 byte){
+    int i;
+    gpio_write(WRITE_PIN, 0); // start bit
+    udelay(BIT_DELAY_TIME);
+
+    for (i = 0; i < 8; i++) {
+        gpio_write(WRITE_PIN, (byte >> i) & 1);
+        udelay(BIT_DELAY_TIME);
+    }
+    gpio_write(WRITE_PIN, 1); // stop bit
+    udelay(BIT_DELAY_TIME);
+}
+
+static int receive_byte(void){
+    int i;
+    u8 byte = 0;
+    int timeout = 100000;
+    
+    while(gpio_read(READ_PIN) == 1) {
+        if (--timeout == 0) {
+            pr_alert("receive_byte: timeout esperando el bit de inicio\n");
+            return -ETIMEDOUT;
+        }
+        udelay(1);
+    }
+
+    udelay(BIT_DELAY_TIME + BIT_DELAY_TIME / 2);
+
+    for (i = 0; i < 8; i++) {
+        if (gpio_read(READ_PIN)) {
+            byte |= (1U << i);
+        }
+        udelay(BIT_DELAY_TIME);
+    }
+
+    return byte;
+}
+
 //como estoy tocando bajo nivel ocupo escribir en un archivo
 //se toman los datos desde el espacio de usuario
+//aquí debo de agregar algo que cuando se integre con la biblioteca cargue los datos en orden como se está creando el formato
+//el formato siendo con las instrucciones de arriba (CMD, 0, 0) -> ESO PARA GOTO Y DRAW LINE, (CMD) -> PARA PENUP Y PENDOWN
 static ssize_t dev_write(struct file *file, const char __user *buf, size_t len, loff_t *offset)
 {
-    char data[NUM_LEDS] = {0};
+    char data[32] = {0};
+    char cmd;
+    int x = 0;
+    int y = 0;
+    int parsed;
+    int ack;
 
-    if (len > NUM_LEDS) len = NUM_LEDS; // se limita la longitud a 1 byte
+    if (len >= sizeof(data)) len = sizeof(data) - 1;
     if (len == 0) return 0;
-    
+
     if (copy_from_user(data, buf, len)) //copia de usuario hacua kernel
         return -EFAULT;
 
-    // se espera 1 para encenderlo, cualquier otro valor lo apaga
-    if (data[0] == '1') {
-        gpio_write(LED_PIN, 1);
-        pr_info("LED encendido {GPIO%d}\n", LED_PIN);
-    } else {
-        gpio_write(LED_PIN, 0);
-        pr_info("LED apagado {GPIO%d}\n", LED_PIN);
+    data[len] = '\0'; // Asegurarse de que la cadena esté terminada en nulo
+
+    // Parsear el comando y los argumentos
+    parsed = sscanf(data, "%c %d %d", &cmd, &x, &y);
+    if (parsed < 1) {
+        pr_alert("dev_write: formato invalido\n");
+        return -EINVAL;
     }
 
+    if (cmd != CMD_GOTO && cmd != CMD_DRAW && cmd != CMD_PENUP && cmd != CMD_PENDOWN) {
+        pr_alert("dev_write: comando desconocido '%c'\n", cmd);
+        return -EINVAL;
+    }
+
+    //aquí ocupo setear como la cantidad de valores permitidos de entrada en x y y (se puede cambiar despues si es necesario) -> jeremy revisar
+
+    if (x < 0 || x > 10000 || y < 0 || y > 10000) {
+        pr_alert("dev_write: coordenadas fuera de rango (x=%d, y=%d)\n", x, y);
+        return -EINVAL;
+    }
+
+    pr_info("dev_write: comando='%c', x=%d, y=%d\n", cmd, x, y);
+
+    //ahora si se envian los datos de 5 bytes, entonces seria CMD X(high) X(low)  Y(high) Y(low)
+    send_byte((u8)cmd);
+    send_byte((u8)(x >> 8));
+    send_byte((u8)x & 0xFF);
+    send_byte((u8)(y >> 8));
+    send_byte((u8)y & 0xFF);
+
+    ack = receive_byte();
+    if (ack < 0) {
+        pr_alert("dev_write: error al recibir ACK\n");
+        return -ETIMEDOUT;
+    }
+    if ((u8)ack != 'A') {
+        pr_alert("dev_write: ACK recibido pero invalido: %d\n", ack);
+        return -EIO;
+    }
+
+    pr_info("dev_write: ACK recibido, comando ejecutado correctamente\n");
     return len;
 }
 
+//por ahorita el read vuelve a hacer nada pq pues no ocupo que el usuario lea nada de la cnc -> preguntarle a jeremy
+//IMPORTANTE: se está usando el pin de lectura dentro de la función de escritura como medio de confirmación de recepción
+//sin embargo, la funcion como tal no se usa pq no ocupo exponerla al user space
 static ssize_t dev_read(struct file *file, char __user *buf, size_t len, loff_t *offset)
 {
-    char out;
-    pr_info("dev_read llamado, offset=%lld\n", *offset);
-    if (*offset > 0)
-        return 0;
-
-    if (len == 0)
-        return 0;
-
-    out = gpio_read(BUTTON_PIN) ? '1' : '0';
-    pr_info("BUTTON_PIN GPIO%d lee: %c\n", BUTTON_PIN, out);
-
-    if (copy_to_user(buf, &out, 1))
-        return -EFAULT;
-
-    *offset = 1;
-    return 1;
+    return 0;
 }
 
 static struct file_operations gpio_fops = {
@@ -154,15 +237,17 @@ static int __init gpio_driver_init(void)
     }
 
 
-    gpio_set_output(LED_PIN);
-    gpio_set_input(BUTTON_PIN);
+    gpio_set_output(WRITE_PIN);
+    gpio_set_input(READ_PIN);
+
+    //como nos basamos en uart dejemos el tx(write) en high
+    gpio_write(WRITE_PIN, 1);
 
     pr_info("GPIO Driver loaded. major=%d\n", major);
     return 0;
 }
 
 static void __exit gpio_driver_exit(void){
-    gpio_write(LED_PIN, 0);
     iounmap(gpio_base);
     unregister_chrdev(major, DEVICE_NAME);
 
