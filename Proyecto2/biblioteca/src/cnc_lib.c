@@ -6,14 +6,11 @@
  * El servidor NUNCA debe abrir /dev/gpio_device directamente.
  *
  * Protocolo de comandos hacia el driver (texto plano via write):
- *   MOVE <x> <y>     - mover a posición absoluta
- *   RIGHT <steps>    - mover derecha
- *   LEFT  <steps>    - mover izquierda
- *   UP    <steps>    - mover arriba
- *   DOWN  <steps>    - mover abajo
- *   HOME             - ir al origen (0,0)
- *   PEN DOWN         - bajar pluma
- *   PEN UP           - levantar pluma
+ *   G <x> <y>        - ir a coordenada absoluta (GOTO)
+ *   U               - levantar pluma
+ *   P               - bajar pluma
+ *
+ * Nota: el comando DRAW ('D') no se utiliza en esta biblioteca.
  */
 
 #include "cnc_lib.h"
@@ -76,6 +73,8 @@ int cnc_open(CNCHandle *handle, const char *device)
 
     handle->fd = open(path, O_WRONLY);
     handle->is_open = 0;
+    handle->x = 0;
+    handle->y = 0;
 
     if (handle->fd < 0)
     {
@@ -122,14 +121,14 @@ int cnc_move_to(CNCHandle *handle, int32_t x, int32_t y)
         return CNC_ERR_NOT_OPEN;
     }
 
-    snprintf(cmd, sizeof(cmd), "MOVE %d %d\n", x, y);
+    snprintf(cmd, sizeof(cmd), "G %d %d\n", x, y);
+    handle->x = x;
+    handle->y = y;
     return _cnc_send_cmd(handle, cmd);
 }
 
 int cnc_move_right(CNCHandle *handle, int32_t steps)
 {
-    char cmd[CNC_CMD_MAX_LEN];
-
     if (handle == NULL || !handle->is_open)
     {
         return CNC_ERR_NOT_OPEN;
@@ -141,14 +140,11 @@ int cnc_move_right(CNCHandle *handle, int32_t steps)
         return CNC_ERR_INVALID;
     }
 
-    snprintf(cmd, sizeof(cmd), "RIGHT %d\n", steps);
-    return _cnc_send_cmd(handle, cmd);
+    return cnc_move_to(handle, handle->x + steps, handle->y);
 }
 
 int cnc_move_left(CNCHandle *handle, int32_t steps)
 {
-    char cmd[CNC_CMD_MAX_LEN];
-
     if (handle == NULL || !handle->is_open)
     {
         return CNC_ERR_NOT_OPEN;
@@ -160,14 +156,11 @@ int cnc_move_left(CNCHandle *handle, int32_t steps)
         return CNC_ERR_INVALID;
     }
 
-    snprintf(cmd, sizeof(cmd), "LEFT %d\n", steps);
-    return _cnc_send_cmd(handle, cmd);
+    return cnc_move_to(handle, handle->x - steps, handle->y);
 }
 
 int cnc_move_up(CNCHandle *handle, int32_t steps)
 {
-    char cmd[CNC_CMD_MAX_LEN];
-
     if (handle == NULL || !handle->is_open)
     {
         return CNC_ERR_NOT_OPEN;
@@ -179,14 +172,11 @@ int cnc_move_up(CNCHandle *handle, int32_t steps)
         return CNC_ERR_INVALID;
     }
 
-    snprintf(cmd, sizeof(cmd), "UP %d\n", steps);
-    return _cnc_send_cmd(handle, cmd);
+    return cnc_move_to(handle, handle->x, handle->y + steps);
 }
 
 int cnc_move_down(CNCHandle *handle, int32_t steps)
 {
-    char cmd[CNC_CMD_MAX_LEN];
-
     if (handle == NULL || !handle->is_open)
     {
         return CNC_ERR_NOT_OPEN;
@@ -198,8 +188,7 @@ int cnc_move_down(CNCHandle *handle, int32_t steps)
         return CNC_ERR_INVALID;
     }
 
-    snprintf(cmd, sizeof(cmd), "DOWN %d\n", steps);
-    return _cnc_send_cmd(handle, cmd);
+    return cnc_move_to(handle, handle->x, handle->y - steps);
 }
 
 int cnc_home(CNCHandle *handle)
@@ -209,7 +198,7 @@ int cnc_home(CNCHandle *handle)
         return CNC_ERR_NOT_OPEN;
     }
 
-    return _cnc_send_cmd(handle, "HOME\n");
+    return cnc_move_to(handle, 0, 0);
 }
 
 /* =========================================================================
@@ -223,7 +212,7 @@ int cnc_pen_down(CNCHandle *handle)
         return CNC_ERR_NOT_OPEN;
     }
 
-    return _cnc_send_cmd(handle, "PEN DOWN\n");
+    return _cnc_send_cmd(handle, "P 0 0\n");
 }
 
 int cnc_pen_up(CNCHandle *handle)
@@ -233,7 +222,7 @@ int cnc_pen_up(CNCHandle *handle)
         return CNC_ERR_NOT_OPEN;
     }
 
-    return _cnc_send_cmd(handle, "PEN UP\n");
+    return _cnc_send_cmd(handle, "U 0 0\n");
 }
 
 /* =========================================================================
@@ -296,10 +285,27 @@ int cnc_draw_path(CNCHandle *handle, const CNCPath *path)
     return CNC_OK;
 }
 
-
 /* =========================================================================
  * I/O raw
  * ========================================================================= */
+
+int cnc_set_speed(CNCHandle *handle, int32_t speed)
+{
+    char cmd[CNC_CMD_MAX_LEN];
+
+    if (handle == NULL || !handle->is_open)
+    {
+        return CNC_ERR_NOT_OPEN;
+    }
+
+    if (speed <= 0)
+    {
+        return CNC_ERR_INVALID;
+    }
+
+    snprintf(cmd, sizeof(cmd), "SPEED %d\n", speed);
+    return _cnc_send_cmd(handle, cmd);
+}
 
 int cnc_write(CNCHandle *handle, const char *cmd)
 {
