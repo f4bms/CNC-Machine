@@ -24,7 +24,7 @@
 #define GPCLR0_OFFSET 0x28
 #define GPLEV0_OFFSET 0x34
 
-#define BIT_DELAY_TIME 100
+#define BIT_DELAY_TIME 500
 
 // para la cnc se usan:
 
@@ -102,44 +102,99 @@ static int gpio_read(int pin)
     return (level & (1u << pin)) ? 1 : 0;
 }
 
+// OPCIÓN 2: Sincronización robusta para driver.c (RPi)
+// Reemplaza las funciones send_byte() y receive_byte() en tu driver.c
+
 static void send_byte(u8 byte){
     int i;
-    gpio_write(WRITE_PIN, 0); // start bit
+    unsigned long start_time;
+    
+    pr_info("[TX] Enviando byte 0x%02X ('%c')\n", 
+            byte, 
+            (byte >= 32 && byte <= 126) ? byte : '.');
+    
+    // IMPORTANTE: Asegura que el pin está en IDLE (HIGH) antes de empezar
+    gpio_write(WRITE_PIN, 1);
+    udelay(BIT_DELAY_TIME * 2);  // Pausa para asegurar sincronización
+    
+    // START BIT (LOW)
+    gpio_write(WRITE_PIN, 0);
+    pr_info("[TX] Start bit enviado\n");
     udelay(BIT_DELAY_TIME);
-
+    
+    // 8 BITS DE DATOS (LSB first)
     for (i = 0; i < 8; i++) {
-        gpio_write(WRITE_PIN, (byte >> i) & 1);
+        int bit = (byte >> i) & 1;
+        gpio_write(WRITE_PIN, bit);
+        
+        // pr_info("[TX] Bit %d = %d\n", i, bit);
+        
         udelay(BIT_DELAY_TIME);
     }
-    gpio_write(WRITE_PIN, 1); // stop bit
+    
+    // STOP BIT (HIGH)
+    gpio_write(WRITE_PIN, 1);
+    pr_info("[TX] Stop bit enviado\n");
     udelay(BIT_DELAY_TIME);
+    
+    pr_info("[TX] Byte 0x%02X enviado completamente\n", byte);
 }
 
 static int receive_byte(void){
     int i;
     u8 byte = 0;
     int timeout = 100000;
+    unsigned long start_time;
+    int bit_value;
     
+    pr_info("[RX] Esperando start bit...\n");
+    
+    // Espera START BIT (LOW) con timeout robusto
+    timeout = 100000000;
     while(gpio_read(READ_PIN) == 1) {
         if (--timeout == 0) {
-            pr_alert("receive_byte: timeout esperando el bit de inicio\n");
+            pr_alert("[RX] Timeout esperando start bit\n");
             return -ETIMEDOUT;
         }
-        udelay(1);
+        udelay(1);  // Sleep mínimo para no usar 100% CPU
     }
-
-    udelay(BIT_DELAY_TIME + BIT_DELAY_TIME / 2);
-
+    
+    pr_info("[RX] Start bit detectado\n");
+    
+    // Espera a estar en el CENTRO del primer bit
+    // Start bit: 0-500 μs
+    // Centro de Bit 0: ~750 μs desde inicio del start bit
+    udelay(BIT_DELAY_TIME + BIT_DELAY_TIME / 2);  // 750 μs
+    
+    // Lee 8 bits
     for (i = 0; i < 8; i++) {
-        if (gpio_read(READ_PIN)) {
+        bit_value = gpio_read(READ_PIN);
+        
+        if (bit_value) {
             byte |= (1U << i);
         }
+        
+        // pr_info("[RX] Bit %d = %d\n", i, bit_value);
+        
+        // Espera exactamente BIT_DELAY_TIME para el siguiente bit
         udelay(BIT_DELAY_TIME);
     }
-
+    
+    // Verifica STOP BIT (debería ser HIGH)
+    udelay(BIT_DELAY_TIME);
+    int stop_bit = gpio_read(READ_PIN);
+    pr_info("[RX] Stop bit = %d\n", stop_bit);
+    
+    if (stop_bit != 1) {
+        pr_alert("[RX] Advertencia: Stop bit no es HIGH (valor=%d)\n", stop_bit);
+    }
+    
+    pr_info("[RX] Byte recibido = 0x%02X ('%c')\n", 
+            byte, 
+            (byte >= 32 && byte <= 126) ? byte : '.');
+    
     return byte;
 }
-
 //como estoy tocando bajo nivel ocupo escribir en un archivo
 //se toman los datos desde el espacio de usuario
 //aquí debo de agregar algo que cuando se integre con la biblioteca cargue los datos en orden como se está creando el formato

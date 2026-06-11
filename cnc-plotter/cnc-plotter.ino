@@ -1,14 +1,30 @@
-// ============================================================
-//  CNC Plotter
-// ============================================================
+#define DEBUG_COMM 1
+
+#if DEBUG_COMM
+  #define DBG(...) Serial.printf(__VA_ARGS__)
+#else
+  #define DBG(...)
+#endif
 
 #include <Arduino.h>
 #include <math.h>
 
-// ===== PINES =====
+// ===== PINES MOTORES =====
 const int xPins[4] = {14, 27, 26, 25};
 const int yPins[4] = {5, 17, 16, 4};
 const int zPins[4] = {23, 22, 19, 18};
+
+// ===== PINES COMUNICACION =====
+const int RX_PIN = 32;  // recibe datos desde la RPi (conectar a GPIO17 RPi)
+const int TX_PIN = 33;  // manda ACK a la RPi     (conectar a GPIO27 RPi)
+
+// ===== PROTOCOLO =====
+#define BIT_DELAY_US  500
+
+#define CMD_GOTO      'G'
+#define CMD_DRAW      'D'
+#define CMD_PEN_DOWN  'P'
+#define CMD_PEN_UP    'U'
 
 // Secuencia half-step
 const int halfStep[8][4] = {
@@ -19,45 +35,38 @@ const int halfStep[8][4] = {
 int stepX = 0, stepY = 0, stepZ = 0;
 int posX  = 0, posY  = 0;
 
-const int SPEED_DELAY = 1500; // microsegundos entre pasos
+const int SPEED_DELAY = 1500;
 
 // ============================================================
-//  Funciones base
+// Funciones base motores
 // ============================================================
 
-// Avanza un paso en la dirección dada (dir > 0: adelante, dir < 0: atrás)
 void stepMotor(const int pins[4], int &idx, int dir) {
-  idx = (idx + (dir > 0 ? 1 : 7)) % 8; // avanza o retrocede en la secuencia
+  idx = (idx + (dir > 0 ? 1 : 7)) % 8;
   for (int i = 0; i < 4; i++) digitalWrite(pins[i], halfStep[idx][i]);
   delayMicroseconds(SPEED_DELAY);
 }
 
-// Desactiva el motor para ahorrar energía y evitar calentamiento
 void releaseMotor(const int pins[4]) {
   for (int i = 0; i < 4; i++) digitalWrite(pins[i], LOW);
 }
 
-// Baja el lápiz (motor Z hacia abajo)
 void penDown() {
   for (int i = 0; i < 200; i++) stepMotor(zPins, stepZ, 1);
   releaseMotor(zPins);
 }
-// Sube el lápiz (motor Z hacia arriba)
+
 void penUp() {
   for (int i = 0; i < 200; i++) stepMotor(zPins, stepZ, -1);
   releaseMotor(zPins);
 }
 
-// Desplazamiento a posición absoluta (lápiz arriba)
 void goTo(int x, int y) {
   int dx = x - posX, dy = y - posY;
-  // ax/ay: distancia absoluta a recorrer en cada eje
   int ax = abs(dx), ay = abs(dy);
-  // sx/sy: dirección de movimiento (-1 o 1), mx/my: paso a dar (1 o -1)
   int sx = dx > 0 ? -1 : 1, sy = dy > 0 ? -1 : 1;
   int mx = dx > 0 ?  1 : -1, my = dy > 0 ?  1 : -1;
   while (true) {
-    // Avanza un paso en X e Y según corresponda, hasta llegar a destino
     if (posX != x) { stepMotor(xPins, stepX, sx); posX += mx; }
     if (posY != y) { stepMotor(yPins, stepY, sy); posY += my; }
     if (posX == x && posY == y) break;
@@ -65,7 +74,6 @@ void goTo(int x, int y) {
   releaseMotor(xPins); releaseMotor(yPins);
 }
 
-// Traza línea recta a posición absoluta (lápiz abajo)
 void drawLine(int x1, int y1) {
   int dx = x1 - posX, dy = y1 - posY;
   int ax = abs(dx), ay = abs(dy);
@@ -80,55 +88,215 @@ void drawLine(int x1, int y1) {
 }
 
 // ============================================================
-// Funciones de prueba
+// Bit-banging: recepcion y envio
 // ============================================================
-void test_lissajous_denso(int cx, int cy, int ampX, int ampY) {
-  // a y b primos entre sí → el trazo cierra exactamente
-  // y cubre el espacio de forma uniforme sin repetir camino
-  const int   a     = 7;
-  const int   b     = 13;
-  const float delta = M_PI / 4.0f;
 
-  // Necesitamos lcm(a,b) períodos completos para cerrar la curva.
-  // Con a=7, b=13 → lcm=91 → usamos 91*100 = 9100 pasos
-  const int pasos = 9100;
-  bool primero = true;
+// Recibe un byte por RX_PIN con timeout.
+// Retorna el byte recibido o -1 si no llega nada en 100ms.
+int bb_recv_byte() {
+  unsigned long timeout = 100000;
 
-  for (int i = 0; i <= pasos; i++) {
-    float t  = 2.0f * M_PI * i / pasos;
-    int   nx = cx + (int)(ampX * sin(a * t + delta));
-    int   ny = cy + (int)(ampY * sin(b * t));
+  DBG("[RX] Esperando start bit...\n");
 
-    if (primero) { goTo(nx, ny); penDown(); primero = false; }
-    else          drawLine(nx, ny);
+  while (digitalRead(RX_PIN) == HIGH) {
+    if (timeout-- == 0) {
+      // DBG("[RX] Timeout esperando start bit\n");
+      return -1;
+    }
+    delayMicroseconds(1);
   }
+
+  // DBG("[RX] Start bit detectado\n");
+
+  delayMicroseconds(BIT_DELAY_US + BIT_DELAY_US / 2);
+
+  uint8_t byte = 0;
+
+  for (int i = 0; i < 8; i++) {
+    int bit = digitalRead(RX_PIN);
+
+    if (bit)
+      byte |= (1 << i);
+
+    // DBG("[RX] Bit %d = %d\n", i, bit);
+
+    delayMicroseconds(BIT_DELAY_US);
+  }
+
+  delayMicroseconds(BIT_DELAY_US);
+
+  // DBG("[RX] Byte recibido = 0x%02X (%d '%c')\n",
+  //     byte,
+  //     byte,
+  //     (byte >= 32 && byte <= 126) ? byte : '.');
+
+  return byte;
+}
+// Manda un byte por TX_PIN
+void bb_send_byte(uint8_t byte) {
+
+  DBG("[TX] Enviando byte 0x%02X (%d '%c')\n",
+      byte,
+      byte,
+      (byte >= 32 && byte <= 126) ? byte : '.');
+
+  digitalWrite(TX_PIN, LOW);
+  delayMicroseconds(BIT_DELAY_US);
+
+  for (int i = 0; i < 8; i++) {
+
+    int bit = (byte >> i) & 1;
+
+    //DBG("[TX] Bit %d = %d\n", i, bit);
+
+    digitalWrite(TX_PIN, bit);
+    delayMicroseconds(BIT_DELAY_US);
+  }
+
+  digitalWrite(TX_PIN, HIGH);
+  delayMicroseconds(BIT_DELAY_US);
+
+  DBG("[TX] Byte enviado\n");
+}
+
+void send_ack() {
+  DBG("[ACK] Enviando ACK...\n");
+
+  bb_send_byte('A');
+
+  DBG("[ACK] ACK enviado\n");
 }
 
 
+// ============================================================
+// Recepcion y ejecucion de comandos
+// ============================================================
+
+void recv_and_execute() {
+
+  int cmd = bb_recv_byte();
+
+  if (cmd < 0)
+    return;
+
+  DBG("\n========================\n");
+  DBG("[CMD] Recibido comando '%c' (0x%02X)\n", cmd, cmd);
+
+  int x = 0;
+  int y = 0;
+
+
+  // G y D traen coordenadas (4 bytes extra)
+  if (cmd == CMD_GOTO || cmd == CMD_DRAW) {
+
+    DBG("[CMD] Esperando coordenadas...\n");
+
+    int xh = bb_recv_byte();
+    if (xh < 0) {
+      DBG("[ERROR] xh timeout\n");
+      return;
+    }
+
+    int xl = bb_recv_byte();
+    if (xl < 0) {
+      DBG("[ERROR] xl timeout\n");
+      return;
+    }
+
+    int yh = bb_recv_byte();
+    if (yh < 0) {
+      DBG("[ERROR] yh timeout\n");
+      return;
+    }
+
+    int yl = bb_recv_byte();
+    if (yl < 0) {
+      DBG("[ERROR] yl timeout\n");
+      return;
+    }
+
+    DBG("[CMD] xh=%d xl=%d yh=%d yl=%d\n",
+        xh, xl, yh, yl);
+
+    x = (xh << 8) | xl;
+    y = (yh << 8) | yl;
+
+    DBG("[CMD] Coordenadas decodificadas x=%d y=%d\n",
+        x, y);
+}
+
+  Serial.printf("CMD=%c x=%d y=%d\n", cmd, x, y);
+
+  DBG("[CMD] Ejecutando...\n");
+  switch (cmd) {
+    case CMD_GOTO:
+      DBG("[MOVE] GOTO (%d,%d)\n", x, y);
+      goTo(x, y);
+      DBG("[MOVE] GOTO terminado\n");
+      break;
+
+    case CMD_DRAW:
+        DBG("[DRAW] DRAW (%d,%d)\n", x, y);
+        drawLine(x, y);
+        DBG("[DRAW] DRAW terminado\n");
+        break;
+
+    case CMD_PEN_DOWN:
+        DBG("[PEN] DOWN\n");
+        penDown();
+        DBG("[PEN] DOWN terminado\n");
+        break;
+
+    case CMD_PEN_UP:
+        DBG("[PEN] UP\n");
+        penUp();
+        DBG("[PEN] UP terminado\n");
+        break;
+    default:
+      Serial.println("Comando desconocido");
+      return;
+  }
+
+  send_ack();  // avisa a la RPi que terminó
+}
 
 // ============================================================
-//  Setup
+// Setup y Loop
 // ============================================================
+
 void setup() {
   Serial.begin(115200);
 
+  // pines motores
   for (int i = 0; i < 4; i++) {
     pinMode(xPins[i], OUTPUT);
     pinMode(yPins[i], OUTPUT);
     pinMode(zPins[i], OUTPUT);
   }
 
-  delay(2000); // espera 2 segundos para preparar el plotter
-  // centro del área 10000x10000, limitacion fisica del plotter
-  int cx = 5000, cy = 5000;  
+  // pines comunicacion
+  pinMode(RX_PIN, INPUT);
+  pinMode(TX_PIN, OUTPUT);
+  digitalWrite(TX_PIN, HIGH);   // idle alto
 
-
-  test_lissajous_denso(cx, cy, 5000, 5000);
-
-
-  penUp();  // levanta el lápiz al finalizar
-  goTo(0, 0);  // vuelve al origen
-  Serial.println("Dibujo terminado.");
+  Serial.println("ESP listo, esperando comandos...");
 }
 
-void loop() {}
+void loop() {
+
+  static unsigned long lastPrint = 0;
+
+  if (millis() - lastPrint > 1000) {
+    lastPrint = millis();
+
+    Serial.printf(
+        "[STATUS] RX=%d TX=%d POS=(%d,%d)\n",
+        digitalRead(RX_PIN),
+        digitalRead(TX_PIN),
+        posX,
+        posY
+    );
+  }
+
+  recv_and_execute();  // se queda escuchando indefinidamente
+}
