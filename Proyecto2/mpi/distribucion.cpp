@@ -34,9 +34,11 @@ DistribucionMPI crear_distribucion(
             base_rows +
             (i < remainder ? 1 : 0);
 
-        dist.useful_rows[i] = useful;
+        dist.useful_rows[i] =
+            useful;
 
-        int local = useful;
+        int local =
+            useful;
 
         if(i > 0)
             local += overlap;
@@ -44,7 +46,8 @@ DistribucionMPI crear_distribucion(
         if(i < ranks - 1)
             local += overlap;
 
-        dist.local_rows[i] = local;
+        dist.local_rows[i] =
+            local;
 
         int start_row =
             useful_offset -
@@ -66,7 +69,9 @@ void imprimir_distribucion(
     const DistribucionMPI& dist
 )
 {
-    printf("\nDistribucion MPI\n\n");
+    printf(
+        "\nDistribucion MPI\n\n"
+    );
 
     int useful_start = 0;
 
@@ -160,7 +165,9 @@ void scatter_fragmento(
         MPI_UNSIGNED_CHAR,
 
         local_buffer.data(),
-        local_rows * dist.cols,
+
+        local_rows *
+        dist.cols,
 
         MPI_UNSIGNED_CHAR,
 
@@ -207,8 +214,13 @@ void gather_fragmento(
 
     if(rank == 0)
     {
-        recvcounts.resize(ranks);
-        recvdispls.resize(ranks);
+        recvcounts.resize(
+            ranks
+        );
+
+        recvdispls.resize(
+            ranks
+        );
 
         int offset = 0;
 

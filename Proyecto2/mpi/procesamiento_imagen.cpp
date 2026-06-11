@@ -2,41 +2,23 @@
 
 #include <opencv2/opencv.hpp>
 
-cv::Mat procesar_fragmento(
+cv::Mat generar_binario(
     const cv::Mat& imagen
 )
 {
-    /*
-     * =====================================
-     * Etapa 1
-     * Eliminación de ruido impulsivo
-     * =====================================
-     */
+    // Etapa 1: reducción fuerte de ruido.
 
     cv::Mat denoised;
-
-    /*
-    * Filtro fuerte preservador de bordes.
-    * Mejor que medianBlur para PCB fotografiada.
-    */
 
     cv::fastNlMeansDenoising(
         imagen,
         denoised,
-        30,   // strength luma
-        7,    // template window
-        21    // search window
+        30,
+        7,
+        21
     );
 
-    /*
-     * =====================================
-     * Etapa 2
-     * Binarización adaptativa
-     * =====================================
-     *
-     * Funciona mejor que threshold fijo
-     * para fotografías tomadas con celular.
-     */
+    // Etapa 2: threshold adaptativo; las pistas quedan negras sobre fondo blanco.
 
     cv::Mat binary;
 
@@ -50,24 +32,19 @@ cv::Mat procesar_fragmento(
         -4
     );
 
+    // Etapa 3: apertura ligera para eliminar puntos aislados.
+
     cv::morphologyEx(
         binary,
         binary,
         cv::MORPH_OPEN,
         cv::getStructuringElement(
             cv::MORPH_RECT,
-            cv::Size(2,2)
+            cv::Size(2, 2)
         )
     );
 
-    /*
-     * =====================================
-     * Etapa 3
-     * Apertura morfológica
-     * =====================================
-     *
-     * Elimina pequeños puntos aislados.
-     */
+    // Etapa 4: apertura adicional para limpiar artefactos pequeños.
 
     cv::Mat opened;
 
@@ -84,15 +61,7 @@ cv::Mat procesar_fragmento(
         kernel_open
     );
 
-    /*
-     * =====================================
-     * Etapa 4
-     * Cierre morfológico
-     * =====================================
-     *
-     * Une pequeñas discontinuidades
-     * en las pistas.
-     */
+    // Etapa 5: cierre morfológico para unir pequeñas rupturas.
 
     cv::Mat closed;
 
@@ -109,15 +78,7 @@ cv::Mat procesar_fragmento(
         kernel_close
     );
 
-    /*
-     * =====================================
-     * Etapa 5
-     * Suavizado ligero de bordes
-     * =====================================
-     *
-     * Reduce pequeñas irregularidades
-     * antes de extraer contornos.
-     */
+    // Etapa 6: suavizado previo a la binarización final.
 
     cv::Mat smoothed;
 
@@ -128,15 +89,7 @@ cv::Mat procesar_fragmento(
         0
     );
 
-    /*
-     * =====================================
-     * Etapa 6
-     * Re-binarización
-     * =====================================
-     *
-     * GaussianBlur introduce niveles
-     * intermedios de gris.
-     */
+    // Etapa 7: rebinarización final.
 
     cv::Mat final_binary;
 

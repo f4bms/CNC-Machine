@@ -8,12 +8,7 @@ cv::Mat generar_esqueleto(
 {
     cv::Mat inverted;
 
-    /*
-     * thinning espera:
-     *
-     * fondo = negro
-     * objeto = blanco
-     */
+    // thinning espera fondo negro y objeto blanco, por eso se invierte antes.
 
     cv::bitwise_not(
         binary_image,
