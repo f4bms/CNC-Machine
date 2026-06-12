@@ -19,7 +19,7 @@ const int RX_PIN = 32;  // recibe datos desde la RPi (conectar a GPIO17 RPi)
 const int TX_PIN = 33;  // manda ACK a la RPi     (conectar a GPIO27 RPi)
 
 // ===== PROTOCOLO =====
-#define BIT_DELAY_US  500
+#define BIT_DELAY_US  1000
 
 #define CMD_GOTO      'G'
 #define CMD_DRAW      'D'
@@ -94,45 +94,34 @@ void drawLine(int x1, int y1) {
 // Recibe un byte por RX_PIN con timeout.
 // Retorna el byte recibido o -1 si no llega nada en 100ms.
 int bb_recv_byte() {
-  unsigned long timeout = 100000;
+    unsigned long timeout = 100000;
 
-  DBG("[RX] Esperando start bit...\n");
-
-  while (digitalRead(RX_PIN) == HIGH) {
-    if (timeout-- == 0) {
-      // DBG("[RX] Timeout esperando start bit\n");
-      return -1;
+    // esperar flanco bajante (inicio del start bit)
+    while (digitalRead(RX_PIN) == HIGH) {
+        if (timeout-- == 0) return -1;
+        delayMicroseconds(1);
     }
-    delayMicroseconds(1);
-  }
 
-  // DBG("[RX] Start bit detectado\n");
+    // esperar al CENTRO del start bit (mitad del periodo)
+    delayMicroseconds(BIT_DELAY_US / 2);
 
-  delayMicroseconds(BIT_DELAY_US + BIT_DELAY_US / 2);
+    // verificar que sigue en LOW (confirma que es start bit real)
+    if (digitalRead(RX_PIN) != LOW) return -1; // falso positivo, ignorar
 
-  uint8_t byte = 0;
-
-  for (int i = 0; i < 8; i++) {
-    int bit = digitalRead(RX_PIN);
-
-    if (bit)
-      byte |= (1 << i);
-
-    // DBG("[RX] Bit %d = %d\n", i, bit);
-
+    // ahora saltar un periodo completo para llegar al centro del bit 0
     delayMicroseconds(BIT_DELAY_US);
-  }
 
-  delayMicroseconds(BIT_DELAY_US);
+    uint8_t byte = 0;
+    for (int i = 0; i < 8; i++) {
+        if (digitalRead(RX_PIN)) byte |= (1 << i);
+        delayMicroseconds(BIT_DELAY_US);
+    }
 
-  // DBG("[RX] Byte recibido = 0x%02X (%d '%c')\n",
-  //     byte,
-  //     byte,
-  //     (byte >= 32 && byte <= 126) ? byte : '.');
+    // esperar stop bit
+    delayMicroseconds(BIT_DELAY_US / 2);
 
-  return byte;
-}
-// Manda un byte por TX_PIN
+    return byte;
+}// Manda un byte por TX_PIN
 void bb_send_byte(uint8_t byte) {
 
   DBG("[TX] Enviando byte 0x%02X (%d '%c')\n",
@@ -167,6 +156,13 @@ void send_ack() {
   DBG("[ACK] ACK enviado\n");
 }
 
+void send_nack() {
+  DBG("[ACK] Enviando NACK...\n");
+
+  bb_send_byte('N');
+
+  DBG("[ACK] NACK enviado\n");
+}
 
 // ============================================================
 // Recepcion y ejecucion de comandos
@@ -191,29 +187,36 @@ void recv_and_execute() {
 
     DBG("[CMD] Esperando coordenadas...\n");
 
+    bool failed = false;
+
     int xh = bb_recv_byte();
     if (xh < 0) {
       DBG("[ERROR] xh timeout\n");
-      return;
+      failed = true;
     }
+      
 
     int xl = bb_recv_byte();
     if (xl < 0) {
       DBG("[ERROR] xl timeout\n");
-      return;
+      failed = true;
+      
     }
 
     int yh = bb_recv_byte();
     if (yh < 0) {
       DBG("[ERROR] yh timeout\n");
-      return;
+      failed = true;
     }
 
     int yl = bb_recv_byte();
     if (yl < 0) {
       DBG("[ERROR] yl timeout\n");
-      return;
+      failed = true;
     }
+    
+
+    
 
     DBG("[CMD] xh=%d xl=%d yh=%d yl=%d\n",
         xh, xl, yh, yl);
@@ -221,9 +224,14 @@ void recv_and_execute() {
     x = (xh << 8) | xl;
     y = (yh << 8) | yl;
 
+    if (failed || x > 10000 || y > 10000) {
+      send_nack();
+      return;
+    }
+
     DBG("[CMD] Coordenadas decodificadas x=%d y=%d\n",
         x, y);
-}
+  }
 
   Serial.printf("CMD=%c x=%d y=%d\n", cmd, x, y);
 
@@ -254,6 +262,7 @@ void recv_and_execute() {
         break;
     default:
       Serial.println("Comando desconocido");
+      send_nack();
       return;
   }
 
@@ -278,6 +287,8 @@ void setup() {
   pinMode(RX_PIN, INPUT);
   pinMode(TX_PIN, OUTPUT);
   digitalWrite(TX_PIN, HIGH);   // idle alto
+
+  penUp(); // asegurar que la pluma inicia levantada
 
   Serial.println("ESP listo, esperando comandos...");
 }

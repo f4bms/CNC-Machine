@@ -69,6 +69,7 @@ int main(int argc, char *argv[])
     }
 
     // La imagen se carga completa porque el cifrado opera sobre el archivo entero.
+    // Paso 1: leer imagen original completa desde disco.
     FILE *fp = fopen(filename, "rb");
 
     if(fp == NULL)
@@ -77,6 +78,7 @@ int main(int argc, char *argv[])
         return 1;
     }
 
+    // Calcula tamano para reservar un buffer exacto.
     fseek(fp, 0, SEEK_END);
     uint64_t file_size = (uint64_t)ftell(fp);
     rewind(fp);
@@ -100,6 +102,7 @@ int main(int argc, char *argv[])
 
     fclose(fp);
 
+    // Paso 2: cifrar con AES-CBC antes de enviar.
     uint8_t iv[AES_IV_SIZE];
     uint8_t *cipher_buffer = NULL;
     size_t cipher_size = 0;
@@ -127,6 +130,7 @@ int main(int argc, char *argv[])
     free(plain_buffer);
 
     // Se conecta al servidor para enviar tamaño original, tamaño cifrado, IV y ciphertext.
+    // Paso 3: abrir socket TCP hacia el servidor.
     int sockfd = socket(AF_INET, SOCK_STREAM, 0);
 
     if(sockfd < 0)
@@ -144,6 +148,7 @@ int main(int argc, char *argv[])
               server_ip,
               &server_addr.sin_addr);
 
+    // Establece la sesion de transporte del payload cifrado.
     if(connect(sockfd,
                (struct sockaddr*)&server_addr,
                sizeof(server_addr)) < 0)
@@ -156,6 +161,7 @@ int main(int argc, char *argv[])
     uint64_t file_size_net = htonll_local(file_size);
     uint64_t cipher_size_net = htonll_local((uint64_t)cipher_size);
 
+    // Paso 4: envia cabecera + IV + ciphertext en orden fijo.
     if(send_all(sockfd, &file_size_net, sizeof(file_size_net)) != 0 ||
        send_all(sockfd, &cipher_size_net, sizeof(cipher_size_net)) != 0 ||
        send_all(sockfd, iv, AES_IV_SIZE) != 0 ||

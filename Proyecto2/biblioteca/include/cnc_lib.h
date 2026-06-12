@@ -1,40 +1,19 @@
 #ifndef CNC_LIB_H
 #define CNC_LIB_H
 
-/*
- * cnc_lib.h
- * Biblioteca de control para máquina CNC distribuida - Trazado de PCB
- *
- * Esta biblioteca es la ÚNICA capa que interactúa con el device driver GPIO.
- * El servidor/cluster debe llamar exclusivamente a estas funciones para
- * enviar instrucciones de movimiento al hardware.
- *
- * Interfaz con el driver: escritura en /dev/gpio_device mediante write()
- */
-
 #include <stddef.h>
 #include <stdint.h>
 
-/* =========================================================================
- * Constantes de configuración
- * ========================================================================= */
+#define CNC_DEVICE_PATH "/dev/gpio_device" // esto se usa como default cuando no se envia por comando pero tmb se está enviando en el admin de tareas
+#define CNC_CMD_MAX_LEN 64 //longitud
 
-#define CNC_DEVICE_PATH "/dev/gpio_device" /* Ruta al char device del driver */
-#define CNC_CMD_MAX_LEN 64                 /* Longitud máxima de un comando   */
-
-/* =========================================================================
- * Códigos de retorno
- * ========================================================================= */
-
+// Códigos de retorno
 #define CNC_OK 0
 #define CNC_ERR_NOT_OPEN -1 /* El device no fue abierto antes de operar  */
 #define CNC_ERR_WRITE -2    /* Falló write() al driver                   */
 #define CNC_ERR_INVALID -3  /* Parámetros inválidos                      */
 #define CNC_ERR_OPEN -4     /* No se pudo abrir /dev/gpio_device         */
 
-/* =========================================================================
- * Tipos y estructuras
- * ========================================================================= */
 
 /*
  * CNCHandle: contexto de la conexión con el driver.
@@ -43,10 +22,10 @@
  */
 typedef struct
 {
-    int fd;      /* File descriptor del device  */
-    int is_open; /* Flag de estado               */
-    int32_t x;   /* Posición actual en X         */
-    int32_t y;   /* Posición actual en Y         */
+    int fd;      // File descriptor del device
+    int is_open; // Flag de estado
+    int32_t x;   // Posición actual en X
+    int32_t y;   // Posición actual en Y
 } CNCHandle;
 
 /*
@@ -71,13 +50,9 @@ typedef struct
     size_t count;     /* Número de puntos en el arreglo */
 } CNCPath;
 
-/* =========================================================================
- * API pública — Ciclo de vida
- * ========================================================================= */
 
 /*
- * cnc_open()
- * Abre el device driver y prepara el handle para su uso.
+ * Abre el device driver y prepara el handle para su uso
  *
  * Parámetros:
  *   handle  - puntero al CNCHandle que se inicializará
@@ -87,63 +62,23 @@ typedef struct
  */
 int cnc_open(CNCHandle *handle, const char *device);
 
-/*
- * cnc_close()
- * Cierra el file descriptor y marca el handle como inactivo.
+/* Cierra el file descriptor y marca el handle como inactivo.
  * Siempre llamar al final para liberar recursos.
  *
  * Retorna: CNC_OK.
  */
 int cnc_close(CNCHandle *handle);
 
-/* =========================================================================
- * API pública — Movimiento
- * ========================================================================= */
 
-/*
- * cnc_move_to()
- * Mueve el cabezal a una posición absoluta (x, y).
+/* Mueve el cabezal a una posición absoluta (x, y).
  * Genera el comando "G x y" y lo escribe en el driver.
  *
  * Retorna: CNC_OK, CNC_ERR_NOT_OPEN o CNC_ERR_WRITE.
  */
 int cnc_move_to(CNCHandle *handle, int32_t x, int32_t y);
 
-/*
- * cnc_move_right()
- * Desplaza el cabezal hacia la derecha un número de pasos.
- * Equivalente a incrementar X en `steps` unidades.
- *
- * Retorna: CNC_OK, CNC_ERR_NOT_OPEN o CNC_ERR_WRITE.
- */
-int cnc_move_right(CNCHandle *handle, int32_t steps);
 
-/*
- * cnc_move_left()
- * Desplaza el cabezal hacia la izquierda `steps` pasos.
- *
- * Retorna: CNC_OK, CNC_ERR_NOT_OPEN o CNC_ERR_WRITE.
- */
-int cnc_move_left(CNCHandle *handle, int32_t steps);
-
-/*
- * cnc_move_up()
- * Desplaza el cabezal hacia arriba `steps` pasos (incrementa Y).
- *
- * Retorna: CNC_OK, CNC_ERR_NOT_OPEN o CNC_ERR_WRITE.
- */
-int cnc_move_up(CNCHandle *handle, int32_t steps);
-
-/*
- * cnc_move_down()
- * Desplaza el cabezal hacia abajo `steps` pasos (decrementa Y).
- *
- * Retorna: CNC_OK, CNC_ERR_NOT_OPEN o CNC_ERR_WRITE.
- */
-int cnc_move_down(CNCHandle *handle, int32_t steps);
-
-/*
- * cnc_home()
+/* cnc_home()
  * Envía el cabezal a la posición de origen (0, 0).
  * Genera el comando "G 0 0" para el driver.
  * Útil para inicializar o resetear la posición antes de una tarea.
@@ -152,13 +87,8 @@ int cnc_move_down(CNCHandle *handle, int32_t steps);
  */
 int cnc_home(CNCHandle *handle);
 
-/* =========================================================================
- * API pública — Control del marcador/pluma
- * ========================================================================= */
 
-/*
- * cnc_pen_down()
- * Baja el marcador para iniciar el trazado sobre el PCB.
+/* Baja el marcador para iniciar el trazado sobre el PCB.
  * Genera el comando "P 0 0" al driver.
  *
  * Retorna: CNC_OK, CNC_ERR_NOT_OPEN o CNC_ERR_WRITE.
@@ -166,7 +96,6 @@ int cnc_home(CNCHandle *handle);
 int cnc_pen_down(CNCHandle *handle);
 
 /*
- * cnc_pen_up()
  * Levanta el marcador para moverse sin trazar.
  * Genera el comando "U 0 0" al driver.
  *
@@ -174,13 +103,8 @@ int cnc_pen_down(CNCHandle *handle);
  */
 int cnc_pen_up(CNCHandle *handle);
 
-/* =========================================================================
- * API pública — Trazado de rutas completas
- * ========================================================================= */
 
-/*
- * cnc_draw_path()
- * Recibe una ruta vectorizada (CNCPath) y la dibuja completa:
+/* Recibe una ruta vectorizada (CNCPath) y la dibuja completa:
  *   1. Levanta la pluma y se mueve al primer punto.
  *   2. Baja la pluma.
  *   3. Recorre todos los puntos en orden.
@@ -193,22 +117,14 @@ int cnc_pen_up(CNCHandle *handle);
  */
 int cnc_draw_path(CNCHandle *handle, const CNCPath *path);
 
-/*
- * cnc_set_speed()
- * Ajusta la velocidad de la CNC enviando un comando raw compatible.
+/* Ajusta la velocidad de la CNC enviando un comando raw compatible.
  * El driver puede usar este comando para configurar su temporización.
  *
  * Retorna: CNC_OK, CNC_ERR_NOT_OPEN, CNC_ERR_INVALID o CNC_ERR_WRITE.
  */
 int cnc_set_speed(CNCHandle *handle, int32_t speed);
 
-/* =========================================================================
- * API pública — I/O raw (lectura/escritura directa al driver)
- * ========================================================================= */
-
-/*
- * cnc_write()
- * Escribe un comando arbitrario directamente al driver.
+/* Escribe un comando arbitrario directamente al driver.
  * Usada internamente por todas las funciones anteriores.
  * El servidor puede llamarla para comandos no cubiertos por la API.
  *
@@ -219,9 +135,7 @@ int cnc_set_speed(CNCHandle *handle, int32_t speed);
  */
 int cnc_write(CNCHandle *handle, const char *cmd);
 
-/*
- * cnc_read()
- * Lee datos desde el driver (para futuras extensiones del driver que
+/* Lee datos desde el driver (para futuras extensiones del driver que
  * implementen dev_read). Actualmente reservada para compatibilidad.
  *
  * Parámetros:
@@ -232,13 +146,7 @@ int cnc_write(CNCHandle *handle, const char *cmd);
  */
 int cnc_read(CNCHandle *handle, char *buf, size_t len);
 
-/* =========================================================================
- * API pública — Utilidades
- * ========================================================================= */
-
-/*
- * cnc_strerror()
- * Convierte un código de error CNC a cadena legible.
+/* Convierte un código de error CNC a cadena legible.
  * Útil para logging en el servidor.
  *
  * Retorna: puntero a string estático con la descripción del error.

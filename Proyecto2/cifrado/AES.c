@@ -46,6 +46,7 @@ int aes_load_key_from_file(
         len--;
     }
 
+    // AES-128 requiere al menos 16 bytes de llave.
     if(len < AES_KEY_SIZE)
     {
         return -1;
@@ -101,6 +102,7 @@ int aes_encrypt_cbc(
         return -1;
     }
 
+    // Reserva margen para padding del bloque final.
     out = (uint8_t*)malloc(plaintext_len + AES_IV_SIZE);
 
     if(out == NULL)
@@ -109,6 +111,7 @@ int aes_encrypt_cbc(
         return -1;
     }
 
+    // Configura algoritmo, llave e IV.
     if(EVP_EncryptInit_ex(ctx, EVP_aes_128_cbc(), NULL, key, iv) != 1)
     {
         free(out);
@@ -116,6 +119,7 @@ int aes_encrypt_cbc(
         return -1;
     }
 
+    // Cifra bloques completos de entrada.
     if(EVP_EncryptUpdate(ctx, out, &out_len1, plaintext, (int)plaintext_len) != 1)
     {
         free(out);
@@ -123,6 +127,7 @@ int aes_encrypt_cbc(
         return -1;
     }
 
+    // Finaliza y agrega padding del ultimo bloque CBC.
     if(EVP_EncryptFinal_ex(ctx, out + out_len1, &out_len2) != 1)
     {
         free(out);
@@ -175,6 +180,7 @@ int aes_decrypt_cbc(
         return -1;
     }
 
+    // Configura el contexto de descifrado con AES-128-CBC.
     if(EVP_DecryptInit_ex(ctx, EVP_aes_128_cbc(), NULL, key, iv) != 1)
     {
         free(out);
@@ -182,6 +188,7 @@ int aes_decrypt_cbc(
         return -1;
     }
 
+    // Descifra bloques completos y acumula bytes utiles.
     if(EVP_DecryptUpdate(ctx, out, &out_len1, ciphertext, (int)ciphertext_len) != 1)
     {
         free(out);
@@ -189,6 +196,7 @@ int aes_decrypt_cbc(
         return -1;
     }
 
+    // Valida padding y finaliza el descifrado.
     if(EVP_DecryptFinal_ex(ctx, out + out_len1, &out_len2) != 1)
     {
         free(out);

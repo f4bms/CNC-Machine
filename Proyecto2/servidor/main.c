@@ -13,7 +13,15 @@
 #define BUFFER_SIZE 4096
 #define AES_KEY_FILE "../cifrado/aes_key.txt"
 
-// Convierte un entero de 64 bits desde orden de red al orden local.
+/**
+ * @brief Convierte un entero de 64 bits desde orden de red a orden local.
+ *
+ * Se divide el valor en los componentes alto y bajo de 32 bits,
+ * y se aplican las conversiones de endianness correspondientes.
+ *
+ * @param value Entero de 64 bits en orden de red (big endian).
+ * @return Entero de 64 bits en orden de bytes local.
+ */
 static uint64_t ntohll_local(uint64_t value)
 {
     uint32_t high_net = (uint32_t)(value >> 32);
@@ -25,17 +33,27 @@ static uint64_t ntohll_local(uint64_t value)
     return ((uint64_t)low << 32) | high;
 }
 
-// Recibe exactamente len bytes aunque recv() llegue fragmentado.
+/**
+ * @brief Recibe exactamente len bytes desde un socket.
+ *
+ * Continúa llamando a recv() hasta que se hayan recibido todos los bytes
+ * solicitados o se produzca un error.
+ *
+ * @param sockfd Descriptor del socket de entrada.
+ * @param buffer Buffer donde se almacenarán los datos recibidos.
+ * @param len Número total de bytes que se deben recibir.
+ * @return 0 si se recibieron todos los bytes correctamente, -1 en caso de error.
+ */
 static int recv_all(int sockfd, void *buffer, size_t len)
 {
     size_t total = 0;
-    uint8_t *ptr = (uint8_t*)buffer;
+    uint8_t *ptr = (uint8_t *)buffer;
 
-    while(total < len)
+    while (total < len)
     {
         ssize_t n = recv(sockfd, ptr + total, len - total, 0);
 
-        if(n <= 0)
+        if (n <= 0)
         {
             return -1;
         }
@@ -46,6 +64,15 @@ static int recv_all(int sockfd, void *buffer, size_t len)
     return 0;
 }
 
+/**
+ * @brief Punto de entrada del servidor que recibe datos cifrados y lanza MPI.
+ *
+ * Este servidor TCP espera una conexión entrante, recibe un frame cifrado con
+ * metadatos, descifra el payload AES-CBC, escribe el archivo descifrado y
+ * delega el procesamiento distribuido a admin_tareas_ejecutar().
+ *
+ * @return 0 si el flujo completo se ejecuta correctamente, 1 si ocurre un error.
+ */
 int main(void)
 {
     // Servidor: recibe el frame cifrado, lo descifra y activa el procesamiento MPI.
@@ -56,10 +83,11 @@ int main(void)
     struct sockaddr_in client_addr;
 
     socklen_t client_len = sizeof(client_addr);
+
     // Cliente y servidor usan la misma llave editable desde archivo.
     uint8_t shared_key[AES_KEY_SIZE];
 
-    if(aes_load_key_from_file(AES_KEY_FILE, shared_key) != 0)
+    if (aes_load_key_from_file(AES_KEY_FILE, shared_key) != 0)
     {
         fprintf(stderr,
                 "No se pudo cargar la llave AES desde %s (minimo 16 caracteres)\n",
@@ -67,9 +95,10 @@ int main(void)
         return 1;
     }
 
+    // Paso 1: crear socket de escucha en el puerto fijo del servicio.
     server_fd = socket(AF_INET, SOCK_STREAM, 0);
 
-    if(server_fd < 0)
+    if (server_fd < 0)
     {
         perror("socket");
         return 1;
@@ -79,15 +108,16 @@ int main(void)
     server_addr.sin_port = htons(PORT);
     server_addr.sin_addr.s_addr = INADDR_ANY;
 
-    if(bind(server_fd,
-            (struct sockaddr*)&server_addr,
-            sizeof(server_addr)) < 0)
+    // Paso 2: bind + listen para aceptar un cliente.
+    if (bind(server_fd,
+             (struct sockaddr *)&server_addr,
+             sizeof(server_addr)) < 0)
     {
         perror("bind");
         return 1;
     }
 
-    if(listen(server_fd, 5) < 0)
+    if (listen(server_fd, 5) < 0)
     {
         perror("listen");
         return 1;
@@ -95,11 +125,12 @@ int main(void)
 
     printf("Servidor escuchando en puerto %d\n", PORT);
 
+    // Paso 3: bloquear hasta que llegue un cliente.
     client_fd = accept(server_fd,
-                       (struct sockaddr*)&client_addr,
+                       (struct sockaddr *)&client_addr,
                        &client_len);
 
-    if(client_fd < 0)
+    if (client_fd < 0)
     {
         perror("accept");
         return 1;
@@ -107,12 +138,14 @@ int main(void)
 
     printf("Cliente conectado\n");
 
-    // Se recibe el encabezado del frame antes del IV y el ciphertext.
+    // Se recibe el encabezado del frame cifrado:
+    // - file_size_net: tamaño original del archivo en orden de red
+    // - cipher_size_net: tamaño del ciphertext recibido
     uint64_t file_size_net = 0;
     uint64_t cipher_size_net = 0;
 
-    if(recv_all(client_fd, &file_size_net, sizeof(file_size_net)) != 0 ||
-       recv_all(client_fd, &cipher_size_net, sizeof(cipher_size_net)) != 0)
+    if (recv_all(client_fd, &file_size_net, sizeof(file_size_net)) != 0 ||
+        recv_all(client_fd, &cipher_size_net, sizeof(cipher_size_net)) != 0)
     {
         fprintf(stderr, "Error recibiendo encabezado cifrado\n");
         close(client_fd);
@@ -120,6 +153,7 @@ int main(void)
         return 1;
     }
 
+    // Convertir metadatos a endianness local para reservar buffers.
     uint64_t file_size = ntohll_local(file_size_net);
     uint64_t cipher_size = ntohll_local(cipher_size_net);
 
@@ -129,7 +163,7 @@ int main(void)
     // El payload se reconstruye en memoria y luego se descifra con AES.
     uint8_t iv[AES_IV_SIZE];
 
-    if(recv_all(client_fd, iv, AES_IV_SIZE) != 0)
+    if (recv_all(client_fd, iv, AES_IV_SIZE) != 0)
     {
         fprintf(stderr, "Error recibiendo IV\n");
         close(client_fd);
@@ -137,9 +171,9 @@ int main(void)
         return 1;
     }
 
-    uint8_t *cipher_buffer = (uint8_t*)malloc((size_t)cipher_size);
+    uint8_t *cipher_buffer = (uint8_t *)malloc((size_t)cipher_size);
 
-    if(cipher_buffer == NULL)
+    if (cipher_buffer == NULL)
     {
         perror("malloc");
         close(client_fd);
@@ -147,7 +181,7 @@ int main(void)
         return 1;
     }
 
-    if(recv_all(client_fd, cipher_buffer, (size_t)cipher_size) != 0)
+    if (recv_all(client_fd, cipher_buffer, (size_t)cipher_size) != 0)
     {
         fprintf(stderr, "Error recibiendo payload cifrado\n");
         free(cipher_buffer);
@@ -156,15 +190,16 @@ int main(void)
         return 1;
     }
 
+    // Paso 4: descifrar el payload recibido en memoria.
     uint8_t *plain_buffer = NULL;
     size_t plain_size = 0;
 
-    if(aes_decrypt_cbc(cipher_buffer,
-                       (size_t)cipher_size,
-                       shared_key,
-                       iv,
-                       &plain_buffer,
-                       &plain_size) != 0)
+    if (aes_decrypt_cbc(cipher_buffer,
+                        (size_t)cipher_size,
+                        shared_key,
+                        iv,
+                        &plain_buffer,
+                        &plain_size) != 0)
     {
         fprintf(stderr, "Error descifrando payload AES\n");
         free(cipher_buffer);
@@ -175,7 +210,7 @@ int main(void)
 
     free(cipher_buffer);
 
-    if(plain_size != (size_t)file_size)
+    if (plain_size != (size_t)file_size)
     {
         fprintf(stderr,
                 "Advertencia: tamano descifrado (%lu) no coincide con encabezado (%lu)\n",
@@ -184,9 +219,10 @@ int main(void)
     }
 
     // El archivo se vuelve a escribir ya descifrado para que MPI lo procese igual que antes.
+    // Paso 5: guardar binario descifrado para que MPI lo procese.
     FILE *fp = fopen("../img/received.bin", "wb");
 
-    if(fp == NULL)
+    if (fp == NULL)
     {
         perror("fopen");
         return 1;
@@ -203,6 +239,7 @@ int main(void)
     // El pipeline continúa igual: el servidor entrega el archivo limpio a MPI.
     printf("Iniciando procesamiento MPI...\n");
 
+    // Paso 6: delegar la ejecucion distribuida a admin_tareas.
     admin_tareas_ejecutar("../img/received.bin");
 
     close(client_fd);

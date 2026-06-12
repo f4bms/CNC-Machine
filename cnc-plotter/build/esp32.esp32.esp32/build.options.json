@@ -1,0 +1,9 @@
+{
+  "additionalFiles": "../../../../../../../../../../../..,../../../../../../../../..,../../../../../../../../../../../..,../../../../../../../../..",
+  "compiler.optimization_flags": "-Os",
+  "customBuildProperties": "",
+  "fqbn": "esp32:esp32:esp32",
+  "hardwareFolders": "/home/infinitecc/.arduino15/packages/esp32/hardware/esp32/3.3.5,/home/infinitecc/.arduino15/packages/esp32/hardware/esp32/3.3.5",
+  "otherLibrariesFolders": "/home/infinitecc/Arduino/libraries",
+  "sketchLocation": "/home/infinitecc/Semester/Operativos/Project2/CNC-Machine/cnc-plotter"
+}
