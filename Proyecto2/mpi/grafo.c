@@ -6,6 +6,15 @@
 
 // ---- Acceso a pixeles del esqueleto -------------------------------------
 
+/**
+ * @brief Verifica si una coordenada está dentro de los límites de la imagen.
+ *
+ * @param rows Filas totales de la imagen.
+ * @param cols Columnas totales de la imagen.
+ * @param y Coordenada Y.
+ * @param x Coordenada X.
+ * @return 1 si está dentro, 0 si está fuera.
+ */
 static int dentro(
     int rows,
     int cols,
@@ -16,6 +25,18 @@ static int dentro(
     return x >= 0 && y >= 0 && x < cols && y < rows;
 }
 
+/**
+ * @brief Comprueba si un píxel del esqueleto está activo.
+ *
+ * Valida primero los límites y luego retorna si el valor del píxel es mayor que cero.
+ *
+ * @param img Imagen de esqueleto.
+ * @param rows Filas de la imagen.
+ * @param cols Columnas de la imagen.
+ * @param y Coordenada Y.
+ * @param x Coordenada X.
+ * @return 1 si el píxel está activo, 0 en caso contrario.
+ */
 static int pixel_activo(
     const unsigned char* img,
     int rows,
@@ -30,6 +51,18 @@ static int pixel_activo(
     return img[(size_t)y * (size_t)cols + (size_t)x] > 0 ? 1 : 0;
 }
 
+/**
+ * @brief Cuenta vecinos activos en la conectividad 8-neighbors.
+ *
+ * Se usa para clasificar extremos y bifurcaciones en el esqueleto.
+ *
+ * @param img Imagen de esqueleto.
+ * @param rows Filas de la imagen.
+ * @param cols Columnas de la imagen.
+ * @param y Coordenada Y.
+ * @param x Coordenada X.
+ * @return Número de vecinos activos.
+ */
 static int contar_vecinos(
     const unsigned char* img,
     int rows,
@@ -56,6 +89,19 @@ static int contar_vecinos(
     return count;
 }
 
+/**
+ * @brief Enumera los vecinos activos de un píxel en el esqueleto.
+ *
+ * Rellena el arreglo de salida con las coordenadas de los vecinos activos.
+ *
+ * @param img Imagen de esqueleto.
+ * @param rows Filas de la imagen.
+ * @param cols Columnas de la imagen.
+ * @param x Coordenada X del píxel actual.
+ * @param y Coordenada Y del píxel actual.
+ * @param out Salida: vecinos activos encontrados.
+ * @return Cantidad de vecinos activos.
+ */
 // Llena hasta 8 vecinos activos; devuelve la cantidad encontrada.
 static int vecinos_activos(
     const unsigned char* img,
@@ -99,6 +145,15 @@ typedef struct
     int cap;
 } PuntoVec;
 
+/**
+ * @brief Inserta un punto en un vector dinámico de PixelPoint.
+ *
+ * Expande la capacidad del vector si es necesario y anexa el punto.
+ *
+ * @param v Vector dinámico de puntos.
+ * @param p Punto a agregar.
+ * @return 0 en caso de éxito, -1 si no hay memoria.
+ */
 static int pv_push(
     PuntoVec* v,
     PixelPoint p
@@ -124,6 +179,18 @@ static int pv_push(
 
 // ---- Generacion del grafo ------------------------------------------------
 
+/**
+ * @brief Genera un grafo topológico a partir del esqueleto de PCB.
+ *
+ * Detecta nodos en extremos y bifurcaciones, y traza aristas entre ellos
+ * siguiendo el esqueleto binario.
+ *
+ * @param skeleton Imagen del esqueleto.
+ * @param rows Filas de la imagen.
+ * @param cols Columnas de la imagen.
+ * @param out_graph Salida: grafo generado.
+ * @return 0 en caso de éxito, -1 en caso de error.
+ */
 int generar_grafo(
     const unsigned char* skeleton,
     int rows,
@@ -314,6 +381,13 @@ int generar_grafo(
     return 0;
 }
 
+/**
+ * @brief Libera la memoria del grafo y reinicia su estado.
+ *
+ * Libera todas las trayectorias de aristas, nodos y arreglos asociados.
+ *
+ * @param grafo Grafo a liberar.
+ */
 void liberar_grafo(
     Grafo* grafo
 )
@@ -334,6 +408,15 @@ void liberar_grafo(
     grafo->edge_count = 0;
 }
 
+/**
+ * @brief Guarda información de depuración de las aristas detectadas.
+ *
+ * Escribe un archivo de texto con el número de aristas y sus metadatos.
+ *
+ * @param grafo Grafo que se va a exportar.
+ * @param filename Nombre del archivo de salida.
+ * @return 0 en caso de éxito, -1 si no se puede abrir el archivo.
+ */
 int guardar_aristas_debug(
     const Grafo* grafo,
     const char* filename

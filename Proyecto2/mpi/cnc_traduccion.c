@@ -17,14 +17,13 @@
 // Paso recursivo de Douglas-Peucker.
 // Marca en keep[] los puntos que superan la tolerancia epsilon.
 static void douglas_peucker_recursive(
-    const CNCPoint* pts,
+    const CNCPoint *pts,
     int start,
     int end,
     double epsilon,
-    char* keep
-)
+    char *keep)
 {
-    if(end <= start + 1)
+    if (end <= start + 1)
         return;
 
     double x1 = (double)pts[start].x;
@@ -38,13 +37,13 @@ static void douglas_peucker_recursive(
     double max_dist = 0.0;
     int max_idx = start;
 
-    for(int i = start + 1; i < end; i++)
+    for (int i = start + 1; i < end; i++)
     {
         double px = (double)pts[i].x - x1;
         double py = (double)pts[i].y - y1;
         double dist;
 
-        if(len2 == 0.0)
+        if (len2 == 0.0)
         {
             // start == end: distancia directa al punto
             dist = px * px + py * py;
@@ -52,65 +51,64 @@ static void douglas_peucker_recursive(
         else
         {
             // distancia cuadratica del punto a la recta start-end
-            double t  = (px * dx + py * dy) / len2;
+            double t = (px * dx + py * dy) / len2;
             double ex = px - t * dx;
             double ey = py - t * dy;
             dist = ex * ex + ey * ey;
         }
 
-        if(dist > max_dist)
+        if (dist > max_dist)
         {
             max_dist = dist;
-            max_idx  = i;
+            max_idx = i;
         }
     }
 
     // Si el punto mas lejano supera epsilon, se conserva y se subdivide.
-    if(max_dist > epsilon * epsilon)
+    if (max_dist > epsilon * epsilon)
     {
         keep[max_idx] = 1;
-        douglas_peucker_recursive(pts, start,   max_idx, epsilon, keep);
-        douglas_peucker_recursive(pts, max_idx, end,     epsilon, keep);
+        douglas_peucker_recursive(pts, start, max_idx, epsilon, keep);
+        douglas_peucker_recursive(pts, max_idx, end, epsilon, keep);
     }
 }
 
 // Simplifica una polilÃ­nea usando Douglas-Peucker.
 // Retorna 0 en exito, -1 en error.
 static int simplificar_douglas_peucker(
-    const CNCPoint* in,
+    const CNCPoint *in,
     int in_count,
-    CNCPoint** out,
-    int* out_count,
-    double epsilon
-)
+    CNCPoint **out,
+    int *out_count,
+    double epsilon)
 {
-    if(in == NULL || out == NULL || out_count == NULL || in_count <= 0)
+    if (in == NULL || out == NULL || out_count == NULL || in_count <= 0)
         return -1;
 
     // Con 2 puntos o menos no hay nada que simplificar.
-    if(in_count <= 2)
+    if (in_count <= 2)
     {
-        CNCPoint* tmp =
-            (CNCPoint*)malloc((size_t)in_count * sizeof(CNCPoint));
+        CNCPoint *tmp =
+            (CNCPoint *)malloc((size_t)in_count * sizeof(CNCPoint));
 
-        if(tmp == NULL)
+        if (tmp == NULL)
             return -1;
 
-        for(int i = 0; i < in_count; i++)
+        for (int i = 0; i < in_count; i++)
             tmp[i] = in[i];
 
-        *out       = tmp;
+        *out = tmp;
         *out_count = in_count;
         return 0;
     }
 
-    char* keep = (char*)calloc((size_t)in_count, sizeof(char));
+    char *keep = (char *)calloc((size_t)in_count, sizeof(char));
 
-    if(keep == NULL)
+    if (keep == NULL)
         return -1;
 
     // Los extremos siempre se conservan.
-    keep[0]            = 1;
+    keep[0] = 1;
     keep[in_count - 1] = 1;
 
     douglas_peucker_recursive(in, 0, in_count - 1, epsilon, keep);
@@ -118,12 +116,13 @@ static int simplificar_douglas_peucker(
     // Cuenta cuantos puntos quedan tras la simplificacion.
     int n = 0;
 
-    for(int i = 0; i < in_count; i++)
-        if(keep[i]) n++;
+    for (int i = 0; i < in_count; i++)
+        if (keep[i])
+            n++;
 
-    CNCPoint* tmp = (CNCPoint*)malloc((size_t)n * sizeof(CNCPoint));
+    CNCPoint *tmp = (CNCPoint *)malloc((size_t)n * sizeof(CNCPoint));
 
-    if(tmp == NULL)
+    if (tmp == NULL)
     {
         free(keep);
         return -1;
@@ -131,20 +130,20 @@ static int simplificar_douglas_peucker(
 
     int k = 0;
 
-    for(int i = 0; i < in_count; i++)
-        if(keep[i]) tmp[k++] = in[i];
+    for (int i = 0; i < in_count; i++)
+        if (keep[i])
+            tmp[k++] = in[i];
 
     free(keep);
 
-    *out       = tmp;
+    *out = tmp;
     *out_count = n;
     return 0;
 }
 
 static long long dist2(
     CNCPoint a,
-    CNCPoint b
-)
+    CNCPoint b)
 {
     // Distancia cuadratica para ordenar rutas sin usar raiz cuadrada.
     long long dx = (long long)a.x - (long long)b.x;
@@ -154,47 +153,46 @@ static long long dist2(
 }
 
 int convertir_grafo_a_cnc_paths(
-    const Grafo* grafo,
+    const Grafo *grafo,
     int scale_steps,
-    CNCPathOwned** out_paths,
-    int* out_count
-)
+    CNCPathOwned **out_paths,
+    int *out_count)
 {
     // Convierte cada arista en una polilinea CNC escalada en steps.
-    if(grafo == NULL || out_paths == NULL || out_count == NULL)
+    if (grafo == NULL || out_paths == NULL || out_count == NULL)
         return -1;
 
     *out_paths = NULL;
     *out_count = 0;
 
-    if(scale_steps <= 0)
+    if (scale_steps <= 0)
         return -1;
 
-    if(grafo->edge_count <= 0)
+    if (grafo->edge_count <= 0)
         return 0;
 
-    CNCPathOwned* paths =
-        (CNCPathOwned*)calloc((size_t)grafo->edge_count, sizeof(CNCPathOwned));
+    CNCPathOwned *paths =
+        (CNCPathOwned *)calloc((size_t)grafo->edge_count, sizeof(CNCPathOwned));
 
-    if(paths == NULL)
+    if (paths == NULL)
         return -1;
 
     int count = 0;
 
     // Reserva y rellena rutas solo para aristas validas (>= 2 puntos).
-    for(int i = 0; i < grafo->edge_count; i++)
+    for (int i = 0; i < grafo->edge_count; i++)
     {
-        const Arista* a = &grafo->edges[i];
+        const Arista *a = &grafo->edges[i];
 
-        if(a->trayectoria_len < 2)
+        if (a->trayectoria_len < 2)
             continue;
 
-        CNCPoint* pts =
-            (CNCPoint*)malloc((size_t)a->trayectoria_len * sizeof(CNCPoint));
+        CNCPoint *pts =
+            (CNCPoint *)malloc((size_t)a->trayectoria_len * sizeof(CNCPoint));
 
-        if(pts == NULL)
+        if (pts == NULL)
         {
-            for(int k = 0; k < count; k++)
+            for (int k = 0; k < count; k++)
                 free(paths[k].puntos);
 
             free(paths);
@@ -202,20 +200,20 @@ int convertir_grafo_a_cnc_paths(
         }
 
         // Aqui ocurre la conversion pixel -> steps via scale_steps.
-        for(int j = 0; j < a->trayectoria_len; j++)
+        for (int j = 0; j < a->trayectoria_len; j++)
         {
             pts[j].x = a->trayectoria[j].x * scale_steps;
             pts[j].y = a->trayectoria[j].y * scale_steps;
         }
 
-        CNCPoint* simp = NULL;
+        CNCPoint *simp = NULL;
         int simp_count = 0;
 
-        if(simplificar_douglas_peucker(pts, a->trayectoria_len, &simp, &simp_count, CNC_DP_EPSILON) != 0)
+        if (simplificar_douglas_peucker(pts, a->trayectoria_len, &simp, &simp_count, CNC_DP_EPSILON) != 0)
         {
             free(pts);
 
-            for(int k = 0; k < count; k++)
+            for (int k = 0; k < count; k++)
                 free(paths[k].puntos);
 
             free(paths);
@@ -236,46 +234,43 @@ int convertir_grafo_a_cnc_paths(
 }
 
 void liberar_cnc_paths(
-    CNCPathOwned* paths,
-    int count
-)
+    CNCPathOwned *paths,
+    int count)
 {
-    if(paths == NULL)
+    if (paths == NULL)
         return;
 
-    for(int i = 0; i < count; i++)
+    for (int i = 0; i < count; i++)
         free(paths[i].puntos);
 
     free(paths);
 }
 
 int guardar_cnc_paths_debug(
-    const CNCPathOwned* paths,
+    const CNCPathOwned *paths,
     int count,
-    const char* filename
-)
+    const char *filename)
 {
-    FILE* fp = fopen(filename, "w");
+    FILE *fp = fopen(filename, "w");
 
-    if(fp == NULL)
+    if (fp == NULL)
         return -1;
 
     fprintf(fp, "# CNC paths: %d\n", count);
 
-    for(int i = 0; i < count; i++)
+    for (int i = 0; i < count; i++)
     {
-        const CNCPathOwned* p = &paths[i];
+        const CNCPathOwned *p = &paths[i];
 
         fprintf(fp, "path %d points=%d\n", i, p->count);
 
-        for(int j = 0; j < p->count; j++)
+        for (int j = 0; j < p->count; j++)
         {
             fprintf(
                 fp,
                 "  %d %d\n",
                 (int)p->puntos[j].x,
-                (int)p->puntos[j].y
-            );
+                (int)p->puntos[j].y);
         }
     }
 
@@ -302,14 +297,13 @@ int guardar_cnc_paths_debug(
 // Paso recursivo de Douglas-Peucker.
 // Marca en keep[] los puntos que superan la tolerancia epsilon.
 static void douglas_peucker_recursive(
-    const CNCPoint* pts,
+    const CNCPoint *pts,
     int start,
     int end,
     double epsilon,
-    char* keep
-)
+    char *keep)
 {
-    if(end <= start + 1)
+    if (end <= start + 1)
         return;
 
     double x1 = (double)pts[start].x;
@@ -323,13 +317,13 @@ static void douglas_peucker_recursive(
     double max_dist = 0.0;
     int max_idx = start;
 
-    for(int i = start + 1; i < end; i++)
+    for (int i = start + 1; i < end; i++)
     {
         double px = (double)pts[i].x - x1;
         double py = (double)pts[i].y - y1;
         double dist;
 
-        if(len2 == 0.0)
+        if (len2 == 0.0)
         {
             // start == end: distancia directa al punto
             dist = px * px + py * py;
@@ -337,65 +331,64 @@ static void douglas_peucker_recursive(
         else
         {
             // distancia cuadratica del punto a la recta start-end
-            double t  = (px * dx + py * dy) / len2;
+            double t = (px * dx + py * dy) / len2;
             double ex = px - t * dx;
             double ey = py - t * dy;
             dist = ex * ex + ey * ey;
         }
 
-        if(dist > max_dist)
+        if (dist > max_dist)
         {
             max_dist = dist;
-            max_idx  = i;
+            max_idx = i;
         }
     }
 
     // Si el punto mas lejano supera epsilon, se conserva y se subdivide.
-    if(max_dist > epsilon * epsilon)
+    if (max_dist > epsilon * epsilon)
     {
         keep[max_idx] = 1;
-        douglas_peucker_recursive(pts, start,   max_idx, epsilon, keep);
-        douglas_peucker_recursive(pts, max_idx, end,     epsilon, keep);
+        douglas_peucker_recursive(pts, start, max_idx, epsilon, keep);
+        douglas_peucker_recursive(pts, max_idx, end, epsilon, keep);
     }
 }
 
 // Simplifica una polilÃ­nea usando Douglas-Peucker.
 // Retorna 0 en exito, -1 en error.
 static int simplificar_douglas_peucker(
-    const CNCPoint* in,
+    const CNCPoint *in,
     int in_count,
-    CNCPoint** out,
-    int* out_count,
-    double epsilon
-)
+    CNCPoint **out,
+    int *out_count,
+    double epsilon)
 {
-    if(in == NULL || out == NULL || out_count == NULL || in_count <= 0)
+    if (in == NULL || out == NULL || out_count == NULL || in_count <= 0)
         return -1;
 
     // Con 2 puntos o menos no hay nada que simplificar.
-    if(in_count <= 2)
+    if (in_count <= 2)
     {
-        CNCPoint* tmp =
-            (CNCPoint*)malloc((size_t)in_count * sizeof(CNCPoint));
+        CNCPoint *tmp =
+            (CNCPoint *)malloc((size_t)in_count * sizeof(CNCPoint));
 
-        if(tmp == NULL)
+        if (tmp == NULL)
             return -1;
 
-        for(int i = 0; i < in_count; i++)
+        for (int i = 0; i < in_count; i++)
             tmp[i] = in[i];
 
-        *out       = tmp;
+        *out = tmp;
         *out_count = in_count;
         return 0;
     }
 
-    char* keep = (char*)calloc((size_t)in_count, sizeof(char));
+    char *keep = (char *)calloc((size_t)in_count, sizeof(char));
 
-    if(keep == NULL)
+    if (keep == NULL)
         return -1;
 
     // Los extremos siempre se conservan.
-    keep[0]            = 1;
+    keep[0] = 1;
     keep[in_count - 1] = 1;
 
     douglas_peucker_recursive(in, 0, in_count - 1, epsilon, keep);
@@ -403,12 +396,13 @@ static int simplificar_douglas_peucker(
     // Cuenta cuantos puntos quedan tras la simplificacion.
     int n = 0;
 
-    for(int i = 0; i < in_count; i++)
-        if(keep[i]) n++;
+    for (int i = 0; i < in_count; i++)
+        if (keep[i])
+            n++;
 
-    CNCPoint* tmp = (CNCPoint*)malloc((size_t)n * sizeof(CNCPoint));
+    CNCPoint *tmp = (CNCPoint *)malloc((size_t)n * sizeof(CNCPoint));
 
-    if(tmp == NULL)
+    if (tmp == NULL)
     {
         free(keep);
         return -1;
@@ -416,20 +410,20 @@ static int simplificar_douglas_peucker(
 
     int k = 0;
 
-    for(int i = 0; i < in_count; i++)
-        if(keep[i]) tmp[k++] = in[i];
+    for (int i = 0; i < in_count; i++)
+        if (keep[i])
+            tmp[k++] = in[i];
 
     free(keep);
 
-    *out       = tmp;
+    *out = tmp;
     *out_count = n;
     return 0;
 }
 
 static long long dist2(
     CNCPoint a,
-    CNCPoint b
-)
+    CNCPoint b)
 {
     // Distancia cuadratica para ordenar rutas sin usar raiz cuadrada.
     long long dx = (long long)a.x - (long long)b.x;
@@ -439,47 +433,46 @@ static long long dist2(
 }
 
 int convertir_grafo_a_cnc_paths(
-    const Grafo* grafo,
+    const Grafo *grafo,
     int scale_steps,
-    CNCPathOwned** out_paths,
-    int* out_count
-)
+    CNCPathOwned **out_paths,
+    int *out_count)
 {
     // Convierte cada arista en una polilinea CNC escalada en steps.
-    if(grafo == NULL || out_paths == NULL || out_count == NULL)
+    if (grafo == NULL || out_paths == NULL || out_count == NULL)
         return -1;
 
     *out_paths = NULL;
     *out_count = 0;
 
-    if(scale_steps <= 0)
+    if (scale_steps <= 0)
         return -1;
 
-    if(grafo->edge_count <= 0)
+    if (grafo->edge_count <= 0)
         return 0;
 
-    CNCPathOwned* paths =
-        (CNCPathOwned*)calloc((size_t)grafo->edge_count, sizeof(CNCPathOwned));
+    CNCPathOwned *paths =
+        (CNCPathOwned *)calloc((size_t)grafo->edge_count, sizeof(CNCPathOwned));
 
-    if(paths == NULL)
+    if (paths == NULL)
         return -1;
 
     int count = 0;
 
     // Reserva y rellena rutas solo para aristas validas (>= 2 puntos).
-    for(int i = 0; i < grafo->edge_count; i++)
+    for (int i = 0; i < grafo->edge_count; i++)
     {
-        const Arista* a = &grafo->edges[i];
+        const Arista *a = &grafo->edges[i];
 
-        if(a->trayectoria_len < 2)
+        if (a->trayectoria_len < 2)
             continue;
 
-        CNCPoint* pts =
-            (CNCPoint*)malloc((size_t)a->trayectoria_len * sizeof(CNCPoint));
+        CNCPoint *pts =
+            (CNCPoint *)malloc((size_t)a->trayectoria_len * sizeof(CNCPoint));
 
-        if(pts == NULL)
+        if (pts == NULL)
         {
-            for(int k = 0; k < count; k++)
+            for (int k = 0; k < count; k++)
                 free(paths[k].puntos);
 
             free(paths);
@@ -487,20 +480,20 @@ int convertir_grafo_a_cnc_paths(
         }
 
         // Aqui ocurre la conversion pixel -> steps via scale_steps.
-        for(int j = 0; j < a->trayectoria_len; j++)
+        for (int j = 0; j < a->trayectoria_len; j++)
         {
             pts[j].x = a->trayectoria[j].x * scale_steps;
             pts[j].y = a->trayectoria[j].y * scale_steps;
         }
 
-        CNCPoint* simp = NULL;
+        CNCPoint *simp = NULL;
         int simp_count = 0;
 
-        if(simplificar_douglas_peucker(pts, a->trayectoria_len, &simp, &simp_count, CNC_DP_EPSILON) != 0)
+        if (simplificar_douglas_peucker(pts, a->trayectoria_len, &simp, &simp_count, CNC_DP_EPSILON) != 0)
         {
             free(pts);
 
-            for(int k = 0; k < count; k++)
+            for (int k = 0; k < count; k++)
                 free(paths[k].puntos);
 
             free(paths);
@@ -521,46 +514,43 @@ int convertir_grafo_a_cnc_paths(
 }
 
 void liberar_cnc_paths(
-    CNCPathOwned* paths,
-    int count
-)
+    CNCPathOwned *paths,
+    int count)
 {
-    if(paths == NULL)
+    if (paths == NULL)
         return;
 
-    for(int i = 0; i < count; i++)
+    for (int i = 0; i < count; i++)
         free(paths[i].puntos);
 
     free(paths);
 }
 
 int guardar_cnc_paths_debug(
-    const CNCPathOwned* paths,
+    const CNCPathOwned *paths,
     int count,
-    const char* filename
-)
+    const char *filename)
 {
-    FILE* fp = fopen(filename, "w");
+    FILE *fp = fopen(filename, "w");
 
-    if(fp == NULL)
+    if (fp == NULL)
         return -1;
 
     fprintf(fp, "# CNC paths: %d\n", count);
 
-    for(int i = 0; i < count; i++)
+    for (int i = 0; i < count; i++)
     {
-        const CNCPathOwned* p = &paths[i];
+        const CNCPathOwned *p = &paths[i];
 
         fprintf(fp, "path %d points=%d\n", i, p->count);
 
-        for(int j = 0; j < p->count; j++)
+        for (int j = 0; j < p->count; j++)
         {
             fprintf(
                 fp,
                 "  %d %d\n",
                 (int)p->puntos[j].x,
-                (int)p->puntos[j].y
-            );
+                (int)p->puntos[j].y);
         }
     }
 
@@ -569,21 +559,20 @@ int guardar_cnc_paths_debug(
 }
 
 int ejecutar_cnc_paths(
-    const CNCPathOwned* paths,
+    const CNCPathOwned *paths,
     int count,
-    const char* device
-)
+    const char *device)
 {
     // Ordena y ejecuta rutas sobre cnc_lib minimizando traslados en vacio.
-    if(paths == NULL || count <= 0)
+    if (paths == NULL || count <= 0)
         return CNC_ERR_INVALID;
 
     // Plan de ejecucion: indices ordenados con heuristica greedy.
-    int* order = (int*)malloc((size_t)count * sizeof(int));
-    char* used = (char*)calloc((size_t)count, sizeof(char));
-    char* reverse = (char*)calloc((size_t)count, sizeof(char));
+    int *order = (int *)malloc((size_t)count * sizeof(int));
+    char *used = (char *)calloc((size_t)count, sizeof(char));
+    char *reverse = (char *)calloc((size_t)count, sizeof(char));
 
-    if(order == NULL || used == NULL || reverse == NULL)
+    if (order == NULL || used == NULL || reverse == NULL)
     {
         free(order);
         free(used);
@@ -595,15 +584,15 @@ int ejecutar_cnc_paths(
     CNCPoint cursor = {0, 0};
 
     // Heuristica greedy: elige la siguiente ruta por distancia al cursor.
-    for(int step = 0; step < count; step++)
+    for (int step = 0; step < count; step++)
     {
         int best_idx = -1;
         int best_reverse = 0;
         long long best_cost = -1;
 
-        for(int i = 0; i < count; i++)
+        for (int i = 0; i < count; i++)
         {
-            if(used[i] || paths[i].count <= 0)
+            if (used[i] || paths[i].count <= 0)
                 continue;
 
             CNCPoint start = paths[i].puntos[0];
@@ -612,14 +601,14 @@ int ejecutar_cnc_paths(
             long long c_start = dist2(cursor, start);
             long long c_end = dist2(cursor, end);
 
-            if(best_cost < 0 || c_start < best_cost)
+            if (best_cost < 0 || c_start < best_cost)
             {
                 best_cost = c_start;
                 best_idx = i;
                 best_reverse = 0;
             }
 
-            if(c_end < best_cost)
+            if (c_end < best_cost)
             {
                 best_cost = c_end;
                 best_idx = i;
@@ -627,14 +616,14 @@ int ejecutar_cnc_paths(
             }
         }
 
-        if(best_idx < 0)
+        if (best_idx < 0)
             break;
 
         used[best_idx] = 1;
         reverse[best_idx] = (char)best_reverse;
         order[planned++] = best_idx;
 
-        if(best_reverse)
+        if (best_reverse)
             cursor = paths[best_idx].puntos[0];
         else
             cursor = paths[best_idx].puntos[paths[best_idx].count - 1];
@@ -645,7 +634,7 @@ int ejecutar_cnc_paths(
     // Desde aqui empieza la fase de hardware via cnc_lib.
     int ret = cnc_open(&handle, device);
 
-    if(ret != CNC_OK)
+    if (ret != CNC_OK)
     {
         fprintf(stderr, "[CNC] cnc_open fallo: %s\n", cnc_strerror(ret));
         free(order);
@@ -656,7 +645,7 @@ int ejecutar_cnc_paths(
 
     ret = cnc_home(&handle);
 
-    if(ret != CNC_OK)
+    if (ret != CNC_OK)
     {
         fprintf(stderr, "[CNC] cnc_home fallo: %s\n", cnc_strerror(ret));
         cnc_close(&handle);
@@ -667,19 +656,19 @@ int ejecutar_cnc_paths(
     }
 
     // Ejecuta cada path ya ordenado y opcionalmente invertido.
-    for(int k = 0; k < planned; k++)
+    for (int k = 0; k < planned; k++)
     {
         int idx = order[k];
-        const CNCPathOwned* p = &paths[idx];
+        const CNCPathOwned *p = &paths[idx];
 
-        if(p->count <= 0)
+        if (p->count <= 0)
             continue;
 
         // Copia puntos aplicando reversa si la heuristica lo eligio.
-        CNCPoint* buffer =
-            (CNCPoint*)malloc((size_t)p->count * sizeof(CNCPoint));
+        CNCPoint *buffer =
+            (CNCPoint *)malloc((size_t)p->count * sizeof(CNCPoint));
 
-        if(buffer == NULL)
+        if (buffer == NULL)
         {
             cnc_pen_up(&handle);
             cnc_close(&handle);
@@ -689,9 +678,9 @@ int ejecutar_cnc_paths(
             return CNC_ERR_INVALID;
         }
 
-        for(int j = 0; j < p->count; j++)
+        for (int j = 0; j < p->count; j++)
         {
-            if(reverse[idx])
+            if (reverse[idx])
                 buffer[j] = p->puntos[p->count - 1 - j];
             else
                 buffer[j] = p->puntos[j];
@@ -706,14 +695,13 @@ int ejecutar_cnc_paths(
 
         free(buffer);
 
-        if(ret != CNC_OK)
+        if (ret != CNC_OK)
         {
             fprintf(
                 stderr,
                 "[CNC] cnc_draw_path fallo en path %d: %s\n",
                 idx,
-                cnc_strerror(ret)
-            );
+                cnc_strerror(ret));
 
             cnc_pen_up(&handle);
             cnc_close(&handle);

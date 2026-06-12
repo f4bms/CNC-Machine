@@ -10,11 +10,10 @@ int crear_distribucion(
     int cols,
     int ranks,
     int overlap,
-    DistribucionMPI* out_dist
-)
+    DistribucionMPI *out_dist)
 {
     // Reserva y calcula la geometria de reparto para Scatterv/Gatherv.
-    if(out_dist == NULL || ranks <= 0)
+    if (out_dist == NULL || ranks <= 0)
         return -1;
 
     out_dist->rows = rows;
@@ -22,15 +21,15 @@ int crear_distribucion(
     out_dist->overlap = overlap;
     out_dist->ranks = ranks;
 
-    out_dist->local_rows = (int*)calloc((size_t)ranks, sizeof(int));
-    out_dist->useful_rows = (int*)calloc((size_t)ranks, sizeof(int));
-    out_dist->sendcounts = (int*)calloc((size_t)ranks, sizeof(int));
-    out_dist->displs = (int*)calloc((size_t)ranks, sizeof(int));
+    out_dist->local_rows = (int *)calloc((size_t)ranks, sizeof(int));
+    out_dist->useful_rows = (int *)calloc((size_t)ranks, sizeof(int));
+    out_dist->sendcounts = (int *)calloc((size_t)ranks, sizeof(int));
+    out_dist->displs = (int *)calloc((size_t)ranks, sizeof(int));
 
-    if(out_dist->local_rows == NULL ||
-       out_dist->useful_rows == NULL ||
-       out_dist->sendcounts == NULL ||
-       out_dist->displs == NULL)
+    if (out_dist->local_rows == NULL ||
+        out_dist->useful_rows == NULL ||
+        out_dist->sendcounts == NULL ||
+        out_dist->displs == NULL)
     {
         liberar_distribucion(out_dist);
         return -1;
@@ -42,7 +41,7 @@ int crear_distribucion(
 
     int useful_offset = 0;
 
-    for(int i = 0; i < ranks; i++)
+    for (int i = 0; i < ranks; i++)
     {
         int useful =
             base_rows +
@@ -52,10 +51,10 @@ int crear_distribucion(
 
         int local = useful;
 
-        if(i > 0)
+        if (i > 0)
             local += overlap;
 
-        if(i < ranks - 1)
+        if (i < ranks - 1)
             local += overlap;
 
         out_dist->local_rows[i] = local;
@@ -75,10 +74,9 @@ int crear_distribucion(
 }
 
 void liberar_distribucion(
-    DistribucionMPI* dist
-)
+    DistribucionMPI *dist)
 {
-    if(dist == NULL)
+    if (dist == NULL)
         return;
 
     free(dist->local_rows);
@@ -94,16 +92,14 @@ void liberar_distribucion(
 }
 
 void imprimir_distribucion(
-    const DistribucionMPI* dist
-)
+    const DistribucionMPI *dist)
 {
     printf(
-        "\nDistribucion MPI\n\n"
-    );
+        "\nDistribucion MPI\n\n");
 
     int useful_start = 0;
 
-    for(int i = 0; i < dist->ranks; i++)
+    for (int i = 0; i < dist->ranks; i++)
     {
         int useful_end =
             useful_start +
@@ -117,17 +113,15 @@ void imprimir_distribucion(
             useful_start,
             useful_end,
             dist->useful_rows[i],
-            dist->local_rows[i]
-        );
+            dist->local_rows[i]);
 
         useful_start += dist->useful_rows[i];
     }
 }
 
 void broadcast_dimensiones(
-    int* rows,
-    int* cols
-)
+    int *rows,
+    int *cols)
 {
     // rank 0 publica rows/cols para que todos procesen con el mismo tamano.
     MPI_Bcast(
@@ -135,25 +129,22 @@ void broadcast_dimensiones(
         1,
         MPI_INT,
         0,
-        MPI_COMM_WORLD
-    );
+        MPI_COMM_WORLD);
 
     MPI_Bcast(
         cols,
         1,
         MPI_INT,
         0,
-        MPI_COMM_WORLD
-    );
+        MPI_COMM_WORLD);
 }
 
 int scatter_fragmento(
-    const unsigned char* image,
-    const DistribucionMPI* dist,
+    const unsigned char *image,
+    const DistribucionMPI *dist,
     int rank,
-    int* local_rows,
-    unsigned char** local_buffer
-)
+    int *local_rows,
+    unsigned char **local_buffer)
 {
     // Primero reparte solo el numero de filas reales por rank.
     MPI_Scatter(
@@ -166,21 +157,20 @@ int scatter_fragmento(
         MPI_INT,
 
         0,
-        MPI_COMM_WORLD
-    );
+        MPI_COMM_WORLD);
 
     // Luego reserva el buffer exacto para su fragmento local.
     size_t count = (size_t)(*local_rows) * (size_t)dist->cols;
 
-    *local_buffer = (unsigned char*)malloc(count);
+    *local_buffer = (unsigned char *)malloc(count);
 
-    if(*local_buffer == NULL)
+    if (*local_buffer == NULL)
         return -1;
 
     // Finalmente reparte pixeles usando sendcounts/displs precomputados.
     MPI_Scatterv(
         rank == 0
-            ? (void*)image
+            ? (void *)image
             : NULL,
 
         dist->sendcounts,
@@ -195,41 +185,39 @@ int scatter_fragmento(
         MPI_UNSIGNED_CHAR,
 
         0,
-        MPI_COMM_WORLD
-    );
+        MPI_COMM_WORLD);
 
     return 0;
 }
 
 int gather_fragmento(
-    const unsigned char* local_processed,
-    const DistribucionMPI* dist,
+    const unsigned char *local_processed,
+    const DistribucionMPI *dist,
     int rank,
-    unsigned char** final_image
-)
+    unsigned char **final_image)
 {
     // Cada rank solo envia su region util (sin overlap duplicado).
     int useful_rows = dist->useful_rows[rank];
 
     int start_local = 0;
 
-    if(rank > 0)
+    if (rank > 0)
         start_local = dist->overlap;
 
     // Region util (sin overlap) que aporta este rank.
-    const unsigned char* send_ptr =
+    const unsigned char *send_ptr =
         local_processed + (size_t)start_local * (size_t)dist->cols;
 
-    int* recvcounts = NULL;
-    int* recvdispls = NULL;
+    int *recvcounts = NULL;
+    int *recvdispls = NULL;
 
-    if(rank == 0)
+    if (rank == 0)
     {
         // rank 0 prepara buffers de recepcion para recomponer la imagen final.
-        recvcounts = (int*)calloc((size_t)dist->ranks, sizeof(int));
-        recvdispls = (int*)calloc((size_t)dist->ranks, sizeof(int));
+        recvcounts = (int *)calloc((size_t)dist->ranks, sizeof(int));
+        recvdispls = (int *)calloc((size_t)dist->ranks, sizeof(int));
 
-        if(recvcounts == NULL || recvdispls == NULL)
+        if (recvcounts == NULL || recvdispls == NULL)
         {
             free(recvcounts);
             free(recvdispls);
@@ -238,7 +226,7 @@ int gather_fragmento(
 
         int offset = 0;
 
-        for(int i = 0; i < dist->ranks; i++)
+        for (int i = 0; i < dist->ranks; i++)
         {
             recvcounts[i] = dist->useful_rows[i] * dist->cols;
             recvdispls[i] = offset;
@@ -246,9 +234,9 @@ int gather_fragmento(
         }
 
         *final_image =
-            (unsigned char*)malloc((size_t)dist->rows * (size_t)dist->cols);
+            (unsigned char *)malloc((size_t)dist->rows * (size_t)dist->cols);
 
-        if(*final_image == NULL)
+        if (*final_image == NULL)
         {
             free(recvcounts);
             free(recvdispls);
@@ -258,7 +246,7 @@ int gather_fragmento(
 
     // Gatherv ensambla el esqueleto final en el rank 0.
     MPI_Gatherv(
-        (void*)send_ptr,
+        (void *)send_ptr,
 
         useful_rows * dist->cols,
 
@@ -272,10 +260,9 @@ int gather_fragmento(
         MPI_UNSIGNED_CHAR,
 
         0,
-        MPI_COMM_WORLD
-    );
+        MPI_COMM_WORLD);
 
-    if(rank == 0)
+    if (rank == 0)
     {
         free(recvcounts);
         free(recvdispls);

@@ -11,54 +11,99 @@
 #include "cnc_traduccion.h"
 #include "../img/procesamiento_imagen.h"
 
+/**
+ * @brief Cantidad de filas que se solapan entre fragmentos.
+ */
 #define OVERLAP_ROWS 10
+
+/**
+ * @brief Escala por defecto para convertir pixeles a pasos CNC.
+ */
 #define DEFAULT_CNC_SCALE 5
 
+/**
+ * @brief Convierte un texto a entero con valor por defecto.
+ *
+ * @param s Cadena de texto que representa un número.
+ * @param fallback Valor retornado si la cadena es NULL, no es positiva o no se puede convertir.
+ * @return Entero convertido o el valor fallback.
+ */
 static int parse_int(
-    const char* s,
-    int fallback
-)
+    const char *s,
+    int fallback)
 {
-    if(s == NULL)
+    if (s == NULL)
         return fallback;
 
     int v = atoi(s);
 
-    if(v <= 0)
+    if (v <= 0)
         return fallback;
 
     return v;
 }
 
 // Carpeta de salida: variable de entorno OUTPUT_DIR o ../outputs por defecto.
-static const char* get_output_dir(void)
+/**
+ * @brief Obtiene el directorio de salida para archivos generados.
+ *
+ * Busca la variable de entorno OUTPUT_DIR y, si no existe,
+ * devuelve la ruta por defecto "../outputs".
+ *
+ * @return Cadena con el directorio de salida.
+ */
+static const char *get_output_dir(void)
 {
-    const char* dir = getenv("OUTPUT_DIR");
+    const char *dir = getenv("OUTPUT_DIR");
 
-    if(dir != NULL && dir[0] != '\0')
+    if (dir != NULL && dir[0] != '\0')
         return dir;
 
     return "../outputs";
 }
 
+/**
+ * @brief Garantiza que exista el directorio de salida.
+ *
+ * Intenta crear el directorio si no existe y muestra un error
+ * en stderr cuando la creación falla por una razón distinta a EEXIST.
+ *
+ * @param dir Directorio de salida a crear.
+ */
 static void ensure_output_dir(
-    const char* dir
-)
+    const char *dir)
 {
-    if(mkdir(dir, 0775) != 0 && errno != EEXIST)
+    if (mkdir(dir, 0775) != 0 && errno != EEXIST)
     {
         fprintf(
             stderr,
             "[MPI] No se pudo crear el directorio de salida %s\n",
-            dir
-        );
+            dir);
     }
 }
 
+/**
+ * @brief Punto de entrada del programa MPI de procesamiento de PCB para CNC.
+ *
+ * Describe el flujo principal:
+ * 1. Inicializa MPI y obtiene rank/size.
+ * 2. Rank 0 valida argumentos, carga la imagen y crea el directorio de salida.
+ * 3. Se comparte el tamaño de la imagen entre todos los procesos.
+ * 4. Se distribuye el fragmento local de la imagen a cada rank.
+ * 5. Cada rank procesa su fragmento de imagen para obtener el esqueleto.
+ * 6. Se recopilan los fragmentos esqueléticos en rank 0.
+ * 7. Rank 0 genera el grafo topológico, guarda imágenes/archivos de depuración
+ *    y convierte el grafo a rutas CNC.
+ * 8. Opcionalmente, si se pasa --cnc-device, ejecuta el trazado en la CNC.
+ * 9. Libera recursos y finaliza MPI.
+ *
+ * @param argc Cuenta de argumentos de línea de comandos.
+ * @param argv Arreglo de argumentos de línea de comandos.
+ * @return 0 en éxito, 1 si hay error de uso o error de procesamiento.
+ */
 int main(
     int argc,
-    char* argv[]
-)
+    char *argv[])
 {
     // Inicializa el runtime MPI en todos los procesos.
     MPI_Init(&argc, &argv);
@@ -70,53 +115,52 @@ int main(
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
     MPI_Comm_size(MPI_COMM_WORLD, &size);
 
-    if(argc < 2)
+    if (argc < 2)
     {
-        if(rank == 0)
+        if (rank == 0)
         {
             printf(
                 "Uso:\n"
                 "./mpi_processor imagen.png "
                 "[--cnc-device /dev/gpio_device] "
-                "[--cnc-scale 1]\n"
-            );
+                "[--cnc-scale 1]\n");
         }
 
         MPI_Finalize();
         return 1;
     }
 
-    const char* cnc_device = NULL;
+    const char *cnc_device = NULL;
     int cnc_scale = DEFAULT_CNC_SCALE;
 
     // Parsea argumentos opcionales del pipeline CNC.
-    for(int i = 2; i < argc; i++)
+    for (int i = 2; i < argc; i++)
     {
-        if(strcmp(argv[i], "--cnc-device") == 0 && i + 1 < argc)
+        if (strcmp(argv[i], "--cnc-device") == 0 && i + 1 < argc)
         {
             cnc_device = argv[++i];
         }
-        else if(strcmp(argv[i], "--cnc-scale") == 0 && i + 1 < argc)
+        else if (strcmp(argv[i], "--cnc-scale") == 0 && i + 1 < argc)
         {
             cnc_scale = parse_int(argv[++i], DEFAULT_CNC_SCALE);
         }
     }
 
     // Define la carpeta de artefactos (rank_*.png, pcb_*.png, *.txt).
-    const char* output_dir = get_output_dir();
+    const char *output_dir = get_output_dir();
 
     // Solo rank 0 crea el directorio compartido de salida.
-    if(rank == 0)
+    if (rank == 0)
         ensure_output_dir(output_dir);
 
-    unsigned char* image = NULL;
+    unsigned char *image = NULL;
     int rows = 0;
     int cols = 0;
 
     // Rank 0 carga la imagen original (OpenCV via interfaz C de img/).
-    if(rank == 0)
+    if (rank == 0)
     {
-        if(img_load_grayscale(argv[1], &image, &rows, &cols) != 0)
+        if (img_load_grayscale(argv[1], &image, &rows, &cols) != 0)
         {
             printf("Error cargando imagen\n");
             MPI_Abort(MPI_COMM_WORLD, 1);
@@ -131,7 +175,7 @@ int main(
     // Calcula el reparto con overlap vertical.
     DistribucionMPI dist;
 
-    if(crear_distribucion(rows, cols, size, OVERLAP_ROWS, &dist) != 0)
+    if (crear_distribucion(rows, cols, size, OVERLAP_ROWS, &dist) != 0)
     {
         fprintf(stderr, "Rank %d: error creando distribucion\n", rank);
         free(image);
@@ -139,14 +183,14 @@ int main(
     }
 
     // Muestra el plan de reparto solo una vez para evitar ruido de logs.
-    if(rank == 0)
+    if (rank == 0)
         imprimir_distribucion(&dist);
 
     // Reparte el fragmento local a cada rank.
     int local_rows = 0;
-    unsigned char* local_buffer = NULL;
+    unsigned char *local_buffer = NULL;
 
-    if(scatter_fragmento(image, &dist, rank, &local_rows, &local_buffer) != 0)
+    if (scatter_fragmento(image, &dist, rank, &local_rows, &local_buffer) != 0)
     {
         fprintf(stderr, "Rank %d: error en scatter\n", rank);
         MPI_Abort(MPI_COMM_WORLD, 1);
@@ -155,24 +199,24 @@ int main(
     printf("Rank %d recibio %d filas\n", rank, local_rows);
 
     // Procesa el fragmento local con OpenCV (binarizacion + esqueleto).
-    unsigned char* local_skeleton = NULL;
+    unsigned char *local_skeleton = NULL;
 
-    if(img_process_fragment(
-           local_buffer,
-           local_rows,
-           cols,
-           rank,
-           output_dir,
-           &local_skeleton) != 0)
+    if (img_process_fragment(
+            local_buffer,
+            local_rows,
+            cols,
+            rank,
+            output_dir,
+            &local_skeleton) != 0)
     {
         fprintf(stderr, "Rank %d: error procesando fragmento\n", rank);
         MPI_Abort(MPI_COMM_WORLD, 1);
     }
 
     // Reensambla el esqueleto completo en el rank 0.
-    unsigned char* final_image = NULL;
+    unsigned char *final_image = NULL;
 
-    if(gather_fragmento(local_skeleton, &dist, rank, &final_image) != 0)
+    if (gather_fragmento(local_skeleton, &dist, rank, &final_image) != 0)
     {
         fprintf(stderr, "Rank %d: error en gather\n", rank);
         MPI_Abort(MPI_COMM_WORLD, 1);
@@ -183,7 +227,7 @@ int main(
     free(local_skeleton);
 
     // Desde aqui solo rank 0 hace ensamblado global, grafo y CNC.
-    if(rank == 0)
+    if (rank == 0)
     {
         char path_skeleton[1024];
         char path_graph[1024];
@@ -204,7 +248,7 @@ int main(
         // Construye el grafo topologico (C puro).
         Grafo grafo;
 
-        if(generar_grafo(final_image, rows, cols, &grafo) != 0)
+        if (generar_grafo(final_image, rows, cols, &grafo) != 0)
         {
             fprintf(stderr, "Error generando grafo\n");
             free(final_image);
@@ -218,10 +262,10 @@ int main(
         guardar_aristas_debug(&grafo, path_edges);
 
         // Traduce el grafo a rutas CNC.
-        CNCPathOwned* cnc_paths = NULL;
+        CNCPathOwned *cnc_paths = NULL;
         int cnc_count = 0;
 
-        if(convertir_grafo_a_cnc_paths(&grafo, cnc_scale, &cnc_paths, &cnc_count) != 0)
+        if (convertir_grafo_a_cnc_paths(&grafo, cnc_scale, &cnc_paths, &cnc_count) != 0)
         {
             fprintf(stderr, "Error generando rutas CNC\n");
             liberar_grafo(&grafo);
@@ -242,14 +286,14 @@ int main(
         printf("Debug rutas guardado:\n%s\n%s\n", path_edges, path_paths);
 
         // Si se habilita el device, ejecuta el trazado fisico en la CNC.
-        if(cnc_device != NULL)
+        if (cnc_device != NULL)
         {
             printf("Ejecutando cnc_lib en device: %s\n", cnc_device);
 
             int cnc_ret =
                 ejecutar_cnc_paths(cnc_paths, cnc_count, cnc_device);
 
-            if(cnc_ret != CNC_OK)
+            if (cnc_ret != CNC_OK)
                 printf("Error ejecutando cnc_lib\n");
             else
                 printf("Trazado CNC completado\n");
