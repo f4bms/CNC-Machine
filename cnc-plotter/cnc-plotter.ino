@@ -156,6 +156,13 @@ void send_ack() {
   DBG("[ACK] ACK enviado\n");
 }
 
+void send_nack() {
+  DBG("[ACK] Enviando NACK...\n");
+
+  bb_send_byte('N');
+
+  DBG("[ACK] NACK enviado\n");
+}
 
 // ============================================================
 // Recepcion y ejecucion de comandos
@@ -180,27 +187,36 @@ void recv_and_execute() {
 
     DBG("[CMD] Esperando coordenadas...\n");
 
+    bool failed = false;
+
     int xh = bb_recv_byte();
     if (xh < 0) {
       DBG("[ERROR] xh timeout\n");
-      return;
+      failed = true;
     }
+      
 
     int xl = bb_recv_byte();
     if (xl < 0) {
       DBG("[ERROR] xl timeout\n");
-      return;
+      failed = true;
+      
     }
 
     int yh = bb_recv_byte();
     if (yh < 0) {
       DBG("[ERROR] yh timeout\n");
-      return;
+      failed = true;
     }
 
     int yl = bb_recv_byte();
     if (yl < 0) {
       DBG("[ERROR] yl timeout\n");
+      failed = true;
+    }
+
+    if (failed) {
+      send_nack();
       return;
     }
 
@@ -212,7 +228,7 @@ void recv_and_execute() {
 
     DBG("[CMD] Coordenadas decodificadas x=%d y=%d\n",
         x, y);
-}
+  }
 
   Serial.printf("CMD=%c x=%d y=%d\n", cmd, x, y);
 
@@ -243,6 +259,7 @@ void recv_and_execute() {
         break;
     default:
       Serial.println("Comando desconocido");
+      send_nack();
       return;
   }
 
@@ -267,6 +284,8 @@ void setup() {
   pinMode(RX_PIN, INPUT);
   pinMode(TX_PIN, OUTPUT);
   digitalWrite(TX_PIN, HIGH);   // idle alto
+
+  penUp(); // asegurar que la pluma inicia levantada
 
   Serial.println("ESP listo, esperando comandos...");
 }
