@@ -60,11 +60,13 @@ int main(
     char* argv[]
 )
 {
+    // Inicializa el runtime MPI en todos los procesos.
     MPI_Init(&argc, &argv);
 
     int rank;
     int size;
 
+    // rank identifica este proceso; size es el total de procesos.
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
     MPI_Comm_size(MPI_COMM_WORLD, &size);
 
@@ -87,6 +89,7 @@ int main(
     const char* cnc_device = NULL;
     int cnc_scale = DEFAULT_CNC_SCALE;
 
+    // Parsea argumentos opcionales del pipeline CNC.
     for(int i = 2; i < argc; i++)
     {
         if(strcmp(argv[i], "--cnc-device") == 0 && i + 1 < argc)
@@ -99,8 +102,10 @@ int main(
         }
     }
 
+    // Define la carpeta de artefactos (rank_*.png, pcb_*.png, *.txt).
     const char* output_dir = get_output_dir();
 
+    // Solo rank 0 crea el directorio compartido de salida.
     if(rank == 0)
         ensure_output_dir(output_dir);
 
@@ -133,6 +138,7 @@ int main(
         MPI_Abort(MPI_COMM_WORLD, 1);
     }
 
+    // Muestra el plan de reparto solo una vez para evitar ruido de logs.
     if(rank == 0)
         imprimir_distribucion(&dist);
 
@@ -172,9 +178,11 @@ int main(
         MPI_Abort(MPI_COMM_WORLD, 1);
     }
 
+    // Cada rank libera su memoria local despues de enviar su region util.
     free(local_buffer);
     free(local_skeleton);
 
+    // Desde aqui solo rank 0 hace ensamblado global, grafo y CNC.
     if(rank == 0)
     {
         char path_skeleton[1024];
@@ -182,6 +190,7 @@ int main(
         char path_edges[1024];
         char path_paths[1024];
 
+        // Construye rutas absolutas/relativas para todos los artefactos finales.
         snprintf(path_skeleton, sizeof(path_skeleton), "%s/pcb_skeleton.png", output_dir);
         snprintf(path_graph, sizeof(path_graph), "%s/pcb_graph.png", output_dir);
         snprintf(path_edges, sizeof(path_edges), "%s/pcb_edges.txt", output_dir);
@@ -222,6 +231,7 @@ int main(
             return 1;
         }
 
+        // Guarda un volcado textual de rutas para depurar movimiento CNC.
         guardar_cnc_paths_debug(cnc_paths, cnc_count, path_paths);
 
         printf("Nodos detectados: %d\n", grafo.node_count);
@@ -249,13 +259,16 @@ int main(
             printf("Ejecucion de hardware omitida (use --cnc-device para habilitar)\n");
         }
 
+        // Libera todo lo asignado en rank 0 antes de terminar MPI.
         liberar_cnc_paths(cnc_paths, cnc_count);
         liberar_grafo(&grafo);
         free(final_image);
     }
 
+    // Libera metadatos comunes de distribucion en todos los ranks.
     liberar_distribucion(&dist);
 
+    // Cierra el runtime MPI de forma ordenada.
     MPI_Finalize();
 
     return 0;

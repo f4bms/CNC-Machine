@@ -87,6 +87,7 @@ static void ensure_output_dir(
     const char* dir
 )
 {
+    // Crea la carpeta de salida si no existe (rank_*.png y depuracion).
     if(dir == NULL)
         return;
 
@@ -105,6 +106,7 @@ extern "C" int img_load_grayscale(
     int* out_cols
 )
 {
+    // Punto de entrada desde C: carga imagen completa en un buffer lineal.
     if(path == NULL || out_buffer == NULL || out_rows == NULL || out_cols == NULL)
         return -1;
 
@@ -113,6 +115,7 @@ extern "C" int img_load_grayscale(
     if(image.empty())
         return -1;
 
+    // Garantiza layout continuo para copiar con memcpy.
     if(!image.isContinuous())
         image = image.clone();
 
@@ -138,6 +141,7 @@ extern "C" int img_save_grayscale(
     int cols
 )
 {
+    // Punto de salida desde C: persiste un buffer lineal como PNG/JPG.
     if(path == NULL || buffer == NULL || rows <= 0 || cols <= 0)
         return -1;
 
@@ -155,9 +159,11 @@ extern "C" int img_process_fragment(
     unsigned char** out_skeleton
 )
 {
+    // Esta funcion corre en cada rank sobre su fragmento local.
     if(input == NULL || out_skeleton == NULL || rows <= 0 || cols <= 0)
         return -1;
 
+    // Si no se pasa output_dir usa ../outputs como destino por defecto.
     const char* dir = (output_dir != NULL && output_dir[0] != '\0')
                           ? output_dir
                           : "../outputs";
@@ -169,6 +175,7 @@ extern "C" int img_process_fragment(
     // Binariza el fragmento local para detectar pistas del PCB.
     cv::Mat local_binary = generar_binario(local_image);
 
+    // Guarda debug por rank para revisar calidad de segmentacion.
     char filename[1024];
 
     snprintf(filename, sizeof(filename), "%s/rank_%d_binary.png", dir, rank);
@@ -180,6 +187,7 @@ extern "C" int img_process_fragment(
     snprintf(filename, sizeof(filename), "%s/rank_%d_skeleton.png", dir, rank);
     cv::imwrite(filename, local_skeleton);
 
+    // Fuerza continuidad para exportar a buffer C sin strides.
     if(!local_skeleton.isContinuous())
         local_skeleton = local_skeleton.clone();
 
@@ -203,6 +211,7 @@ extern "C" int img_save_graph_debug(
     const Grafo* grafo
 )
 {
+    // Dibuja nodos en rojo sobre el esqueleto para inspeccion visual.
     if(path == NULL || skeleton == NULL || grafo == NULL || rows <= 0 || cols <= 0)
         return -1;
 

@@ -38,6 +38,7 @@ static int contar_vecinos(
     int x
 )
 {
+    // Cuenta conectividad 8-neighbors para clasificar extremos/bifurcaciones.
     int count = 0;
 
     for(int dy = -1; dy <= 1; dy++)
@@ -130,6 +131,7 @@ int generar_grafo(
     Grafo* out_graph
 )
 {
+    // Entrada: esqueleto binario; salida: nodos y aristas topologicas.
     if(skeleton == NULL || out_graph == NULL || rows <= 0 || cols <= 0)
         return -1;
 
@@ -153,6 +155,7 @@ int generar_grafo(
     int node_count = 0;
     Nodo* nodes = NULL;
 
+    // Barrido completo para detectar nodos candidatos.
     for(int y = 0; y < rows; y++)
     {
         for(int x = 0; x < cols; x++)
@@ -198,6 +201,7 @@ int generar_grafo(
     int edge_count = 0;
     Arista* edges = NULL;
 
+    // Guardia anti-bucle por si la traza queda ciclica o corrupta.
     long long guard_limit = (long long)rows * (long long)cols;
 
     for(int ni = 0; ni < node_count; ni++)
@@ -229,6 +233,7 @@ int generar_grafo(
 
             int destino_id = -1;
 
+            // Avanza pixel a pixel hasta encontrar otro nodo o una ambiguedad.
             for(long long guard = 0; guard < guard_limit; guard++)
             {
                 int actual_node =
@@ -267,6 +272,7 @@ int generar_grafo(
                     break;
             }
 
+            // Evita aristas incompletas y duplicadas (solo id menor -> mayor).
             if(destino_id < 0 || nodo_id >= destino_id)
             {
                 free(tray.data);
@@ -312,6 +318,7 @@ void liberar_grafo(
     Grafo* grafo
 )
 {
+    // Libera trayectoria por trayectoria y luego arreglos principales.
     if(grafo == NULL)
         return;
 
@@ -332,6 +339,7 @@ int guardar_aristas_debug(
     const char* filename
 )
 {
+    // Exporta metadatos de aristas para inspeccion textual rapida.
     FILE* fp = fopen(filename, "w");
 
     if(fp == NULL)

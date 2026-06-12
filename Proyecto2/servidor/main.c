@@ -67,6 +67,7 @@ int main(void)
         return 1;
     }
 
+    // Paso 1: crear socket de escucha en el puerto fijo del servicio.
     server_fd = socket(AF_INET, SOCK_STREAM, 0);
 
     if(server_fd < 0)
@@ -79,6 +80,7 @@ int main(void)
     server_addr.sin_port = htons(PORT);
     server_addr.sin_addr.s_addr = INADDR_ANY;
 
+    // Paso 2: bind + listen para aceptar un cliente.
     if(bind(server_fd,
             (struct sockaddr*)&server_addr,
             sizeof(server_addr)) < 0)
@@ -95,6 +97,7 @@ int main(void)
 
     printf("Servidor escuchando en puerto %d\n", PORT);
 
+    // Paso 3: bloquear hasta que llegue un cliente.
     client_fd = accept(server_fd,
                        (struct sockaddr*)&client_addr,
                        &client_len);
@@ -120,6 +123,7 @@ int main(void)
         return 1;
     }
 
+    // Convierte metadatos a endianness local para reservar buffers.
     uint64_t file_size = ntohll_local(file_size_net);
     uint64_t cipher_size = ntohll_local(cipher_size_net);
 
@@ -156,6 +160,7 @@ int main(void)
         return 1;
     }
 
+    // Paso 4: descifrar el payload recibido en memoria.
     uint8_t *plain_buffer = NULL;
     size_t plain_size = 0;
 
@@ -184,6 +189,7 @@ int main(void)
     }
 
     // El archivo se vuelve a escribir ya descifrado para que MPI lo procese igual que antes.
+    // Paso 5: guardar binario descifrado para que MPI lo procese.
     FILE *fp = fopen("../img/received.bin", "wb");
 
     if(fp == NULL)
@@ -203,6 +209,7 @@ int main(void)
     // El pipeline continúa igual: el servidor entrega el archivo limpio a MPI.
     printf("Iniciando procesamiento MPI...\n");
 
+    // Paso 6: delegar la ejecucion distribuida a admin_tareas.
     admin_tareas_ejecutar("../img/received.bin");
 
     close(client_fd);

@@ -23,6 +23,7 @@ int convertir_grafo_a_cnc_paths(
     int* out_count
 )
 {
+    // Convierte cada arista en una polilinea CNC escalada en steps.
     if(grafo == NULL || out_paths == NULL || out_count == NULL)
         return -1;
 
@@ -43,6 +44,7 @@ int convertir_grafo_a_cnc_paths(
 
     int count = 0;
 
+    // Reserva y rellena rutas solo para aristas validas (>= 2 puntos).
     for(int i = 0; i < grafo->edge_count; i++)
     {
         const Arista* a = &grafo->edges[i];
@@ -62,6 +64,7 @@ int convertir_grafo_a_cnc_paths(
             return -1;
         }
 
+        // Aqui ocurre la conversion pixel -> steps via scale_steps.
         for(int j = 0; j < a->trayectoria_len; j++)
         {
             pts[j].x = a->trayectoria[j].x * scale_steps;
@@ -133,6 +136,7 @@ int ejecutar_cnc_paths(
     const char* device
 )
 {
+    // Ordena y ejecuta rutas sobre cnc_lib minimizando traslados en vacio.
     if(paths == NULL || count <= 0)
         return CNC_ERR_INVALID;
 
@@ -152,6 +156,7 @@ int ejecutar_cnc_paths(
     int planned = 0;
     CNCPoint cursor = {0, 0};
 
+    // Heuristica greedy: elige la siguiente ruta por distancia al cursor.
     for(int step = 0; step < count; step++)
     {
         int best_idx = -1;
@@ -199,6 +204,7 @@ int ejecutar_cnc_paths(
 
     CNCHandle handle;
 
+    // Desde aqui empieza la fase de hardware via cnc_lib.
     int ret = cnc_open(&handle, device);
 
     if(ret != CNC_OK)
@@ -222,6 +228,7 @@ int ejecutar_cnc_paths(
         return ret;
     }
 
+    // Ejecuta cada path ya ordenado y opcionalmente invertido.
     for(int k = 0; k < planned; k++)
     {
         int idx = order[k];
@@ -256,6 +263,7 @@ int ejecutar_cnc_paths(
         draw_path.points = buffer;
         draw_path.count = (size_t)p->count;
 
+        // cnc_draw_path gestiona pen-up/pen-down y el movimiento real.
         ret = cnc_draw_path(&handle, &draw_path);
 
         free(buffer);

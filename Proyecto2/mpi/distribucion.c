@@ -13,6 +13,7 @@ int crear_distribucion(
     DistribucionMPI* out_dist
 )
 {
+    // Reserva y calcula la geometria de reparto para Scatterv/Gatherv.
     if(out_dist == NULL || ranks <= 0)
         return -1;
 
@@ -35,6 +36,7 @@ int crear_distribucion(
         return -1;
     }
 
+    // Distribucion balanceada: algunos ranks reciben una fila extra.
     int base_rows = rows / ranks;
     int remainder = rows % ranks;
 
@@ -58,6 +60,7 @@ int crear_distribucion(
 
         out_dist->local_rows[i] = local;
 
+        // start_row incluye overlap superior para ranks > 0.
         int start_row =
             useful_offset -
             (i > 0 ? overlap : 0);
@@ -126,6 +129,7 @@ void broadcast_dimensiones(
     int* cols
 )
 {
+    // rank 0 publica rows/cols para que todos procesen con el mismo tamano.
     MPI_Bcast(
         rows,
         1,
@@ -151,6 +155,7 @@ int scatter_fragmento(
     unsigned char** local_buffer
 )
 {
+    // Primero reparte solo el numero de filas reales por rank.
     MPI_Scatter(
         dist->local_rows,
         1,
@@ -164,6 +169,7 @@ int scatter_fragmento(
         MPI_COMM_WORLD
     );
 
+    // Luego reserva el buffer exacto para su fragmento local.
     size_t count = (size_t)(*local_rows) * (size_t)dist->cols;
 
     *local_buffer = (unsigned char*)malloc(count);
@@ -171,6 +177,7 @@ int scatter_fragmento(
     if(*local_buffer == NULL)
         return -1;
 
+    // Finalmente reparte pixeles usando sendcounts/displs precomputados.
     MPI_Scatterv(
         rank == 0
             ? (void*)image
@@ -201,6 +208,7 @@ int gather_fragmento(
     unsigned char** final_image
 )
 {
+    // Cada rank solo envia su region util (sin overlap duplicado).
     int useful_rows = dist->useful_rows[rank];
 
     int start_local = 0;
@@ -217,6 +225,7 @@ int gather_fragmento(
 
     if(rank == 0)
     {
+        // rank 0 prepara buffers de recepcion para recomponer la imagen final.
         recvcounts = (int*)calloc((size_t)dist->ranks, sizeof(int));
         recvdispls = (int*)calloc((size_t)dist->ranks, sizeof(int));
 
@@ -247,6 +256,7 @@ int gather_fragmento(
         }
     }
 
+    // Gatherv ensambla el esqueleto final en el rank 0.
     MPI_Gatherv(
         (void*)send_ptr,
 
