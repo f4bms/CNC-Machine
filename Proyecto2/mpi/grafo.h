@@ -1,47 +1,67 @@
 #ifndef GRAFO_H
 #define GRAFO_H
 
-#include <opencv2/opencv.hpp>
+// Tipos topologicos del PCB en C puro (sin OpenCV).
+// Este header lo comparten el codigo distribuido (mpi) y el modulo
+// de procesamiento de imagen (img) para construir/depurar el grafo.
 
-#include <vector>
+typedef struct
+{
+    int x;
+    int y;
+} PixelPoint;
 
-struct Nodo
+typedef struct
 {
     int id;
+    PixelPoint point;
+} Nodo;
 
-    cv::Point punto;
-};
-
-struct Arista
+typedef struct
 {
     int origen;
-
     int destino;
 
-    std::vector<cv::Point> trayectoria;
-};
+    // Trayectoria de pixeles entre origen y destino.
+    PixelPoint* trayectoria;
+    int trayectoria_len;
+} Arista;
 
-struct Grafo
+typedef struct
 {
-    std::vector<Nodo> nodos;
+    Nodo* nodes;
+    int node_count;
 
-    std::vector<Arista> aristas;
-};
+    Arista* edges;
+    int edge_count;
+} Grafo;
 
-Grafo generar_grafo(
-    const cv::Mat& skeleton
+#ifdef __cplusplus
+extern "C"
+{
+#endif
+
+// Construye un grafo topologico a partir de un esqueleto (buffer 0/255).
+// Devuelve 0 en exito; el grafo resultante se libera con liberar_grafo().
+int generar_grafo(
+    const unsigned char* skeleton,
+    int rows,
+    int cols,
+    Grafo* out_graph
 );
 
-// Exporta aristas como texto para depurar la vectorización de trayectorias.
-void guardar_aristas_debug(
-    const Grafo& grafo,
+void liberar_grafo(
+    Grafo* grafo
+);
+
+// Exporta aristas como texto para depurar la vectorizacion de trayectorias.
+int guardar_aristas_debug(
+    const Grafo* grafo,
     const char* filename
 );
 
-void guardar_grafo_debug(
-    const cv::Mat& skeleton,
-    const Grafo& grafo,
-    const char* filename
-);
+#ifdef __cplusplus
+}
+#endif
 
 #endif

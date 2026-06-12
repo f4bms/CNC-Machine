@@ -1,0 +1,18 @@
+# Hostfile para procesamiento distribuido MPI.
+#
+# IMPORTANTE:
+#   - La PRIMERA linea (primer host no comentado) DEBE ser el servidor,
+#     porque ese nodo sera el rank 0: une la imagen y genera las
+#     instrucciones para la biblioteca CNC.
+#   - El proyecto debe estar clonado en la MISMA ruta en cada maquina
+#     (por ejemplo ~/Desktop/CNC-Machine) y todas en la misma red.
+#
+# Formato (una linea por nodo):
+#   <ip_o_hostname> slots=<numero_de_procesos>
+#
+# Ejemplo multi-nodo (descomentar y ajustar IPs/slots):
+#   192.168.1.10 slots=4   # servidor (rank 0)
+#   192.168.1.11 slots=4
+#   192.168.1.12 slots=4
+
+127.0.0.1 slots=4

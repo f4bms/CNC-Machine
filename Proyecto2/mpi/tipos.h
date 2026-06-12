@@ -1,9 +1,9 @@
 #ifndef TIPOS_H
 #define TIPOS_H
 
-#include <vector>
-
-// Describe cómo se divide una imagen entre los ranks MPI.
+// Describe como se divide una imagen entre los ranks MPI.
+// Todos los arreglos son dinamicos (longitud == ranks) y se liberan
+// con liberar_distribucion().
 typedef struct
 {
     int rows;
@@ -11,15 +11,17 @@ typedef struct
 
     int overlap;
 
+    int ranks;
+
     // Filas reales procesadas por cada rank, incluyendo overlap.
-    std::vector<int> local_rows;
+    int* local_rows;
 
-    // Filas útiles sin overlap.
-    std::vector<int> useful_rows;
+    // Filas utiles sin overlap.
+    int* useful_rows;
 
-    // Parámetros para MPI_Scatterv.
-    std::vector<int> sendcounts;
-    std::vector<int> displs;
+    // Parametros para MPI_Scatterv.
+    int* sendcounts;
+    int* displs;
 
 } DistribucionMPI;
 

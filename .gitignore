@@ -60,6 +60,15 @@ Proyecto2/servidor/pcb_skeleton.png
 Proyecto2/servidor/pcb_graph.png
 Proyecto2/servidor/pcb_edges.txt
 Proyecto2/servidor/pcb_paths.txt
+Proyecto2/servidor/servidor_run.log
+
+# Salidas del flujo completo (carpeta outputs)
+Proyecto2/outputs/rank_*_binary.png
+Proyecto2/outputs/rank_*_skeleton.png
+Proyecto2/outputs/pcb_skeleton.png
+Proyecto2/outputs/pcb_graph.png
+Proyecto2/outputs/pcb_edges.txt
+Proyecto2/outputs/pcb_paths.txt
 
 # Received payloads and generated binaries
 Proyecto2/img/received.bin
