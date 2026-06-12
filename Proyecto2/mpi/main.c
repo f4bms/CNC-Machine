@@ -12,7 +12,7 @@
 #include "../img/procesamiento_imagen.h"
 
 #define OVERLAP_ROWS 10
-#define DEFAULT_CNC_SCALE 1
+#define DEFAULT_CNC_SCALE 5
 
 static int parse_int(
     const char* s,

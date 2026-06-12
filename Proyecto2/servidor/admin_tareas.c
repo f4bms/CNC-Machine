@@ -129,7 +129,7 @@ int admin_tareas_ejecutar(const char *ruta_archivo)
     int wrote = snprintf(
         comando,
         sizeof(comando),
-        "mpirun -np %d --hostfile %s --map-by slot ../mpi/mpi_processor %s",
+        "mpirun -np %d --hostfile %s --map-by slot ../mpi/mpi_processor %s --cnc-device /dev/gpio_device",
         num_procesos,
         hostfile,
         ruta_archivo

@@ -3,70 +3,140 @@
 
 #include <stdio.h>
 #include <stdlib.h>
-#include <math.h>
 
-static int same_point(
-    CNCPoint a,
-    CNCPoint b
+// CNC_DP_EPSILON controla la tolerancia de simplificacion.
+// Unidades: steps (despues de aplicar scale_steps).
+// Valores tipicos:
+//   1.0 -> simplificacion conservadora, curvas muy precisas
+//   2.0 -> balance entre precision y velocidad (recomendado)
+//   5.0 -> simplificacion agresiva, menos comandos, curvas menos suaves
+#ifndef CNC_DP_EPSILON
+#define CNC_DP_EPSILON 2.0
+#endif
+
+// Paso recursivo de Douglas-Peucker.
+// Marca en keep[] los puntos que superan la tolerancia epsilon.
+static void douglas_peucker_recursive(
+    const CNCPoint* pts,
+    int start,
+    int end,
+    double epsilon,
+    char* keep
 )
 {
-    return a.x == b.x && a.y == b.y;
+    if(end <= start + 1)
+        return;
+
+    double x1 = (double)pts[start].x;
+    double y1 = (double)pts[start].y;
+    double x2 = (double)pts[end].x;
+    double y2 = (double)pts[end].y;
+    double dx = x2 - x1;
+    double dy = y2 - y1;
+    double len2 = dx * dx + dy * dy;
+
+    double max_dist = 0.0;
+    int max_idx = start;
+
+    for(int i = start + 1; i < end; i++)
+    {
+        double px = (double)pts[i].x - x1;
+        double py = (double)pts[i].y - y1;
+        double dist;
+
+        if(len2 == 0.0)
+        {
+            // start == end: distancia directa al punto
+            dist = px * px + py * py;
+        }
+        else
+        {
+            // distancia cuadratica del punto a la recta start-end
+            double t  = (px * dx + py * dy) / len2;
+            double ex = px - t * dx;
+            double ey = py - t * dy;
+            dist = ex * ex + ey * ey;
+        }
+
+        if(dist > max_dist)
+        {
+            max_dist = dist;
+            max_idx  = i;
+        }
+    }
+
+    // Si el punto mas lejano supera epsilon, se conserva y se subdivide.
+    if(max_dist > epsilon * epsilon)
+    {
+        keep[max_idx] = 1;
+        douglas_peucker_recursive(pts, start,   max_idx, epsilon, keep);
+        douglas_peucker_recursive(pts, max_idx, end,     epsilon, keep);
+    }
 }
 
-// Compacta tramos rectos: conserva puntos de cambio de direccion y extremos.
-static int simplificar_tramos_colineales(
+// Simplifica una polilÃ­nea usando Douglas-Peucker.
+// Retorna 0 en exito, -1 en error.
+static int simplificar_douglas_peucker(
     const CNCPoint* in,
     int in_count,
     CNCPoint** out,
-    int* out_count
+    int* out_count,
+    double epsilon
 )
 {
     if(in == NULL || out == NULL || out_count == NULL || in_count <= 0)
         return -1;
 
-    CNCPoint* tmp = (CNCPoint*)malloc((size_t)in_count * sizeof(CNCPoint));
-
-    if(tmp == NULL)
-        return -1;
-
-    int n = 0;
-
-    // Siempre conserva el primer punto del path.
-    tmp[n++] = in[0];
-
-    for(int i = 1; i < in_count - 1; i++)
+    // Con 2 puntos o menos no hay nada que simplificar.
+    if(in_count <= 2)
     {
-        CNCPoint a = tmp[n - 1];
-        CNCPoint b = in[i];
-        CNCPoint c = in[i + 1];
+        CNCPoint* tmp =
+            (CNCPoint*)malloc((size_t)in_count * sizeof(CNCPoint));
 
-        if(same_point(a, b))
-            continue;
+        if(tmp == NULL)
+            return -1;
 
-        // El punto final del path se preserva al salir del bucle.
-        if(same_point(b, c))
-            continue;
+        for(int i = 0; i < in_count; i++)
+            tmp[i] = in[i];
 
-        long long v1x = (long long)b.x - (long long)a.x;
-        long long v1y = (long long)b.y - (long long)a.y;
-        long long v2x = (long long)c.x - (long long)b.x;
-        long long v2y = (long long)c.y - (long long)b.y;
-
-        long long cross = v1x * v2y - v1y * v2x;
-        long long dot = v1x * v2x + v1y * v2y;
-
-        // Si sigue en la misma direccion sobre la misma recta, omite el punto medio.
-        if(cross == 0 && dot > 0)
-            continue;
-
-        tmp[n++] = b;
+        *out       = tmp;
+        *out_count = in_count;
+        return 0;
     }
 
-    // Siempre conserva el ultimo punto del path.
-    if(in_count > 1 && !same_point(tmp[n - 1], in[in_count - 1]))
-        tmp[n++] = in[in_count - 1];
+    char* keep = (char*)calloc((size_t)in_count, sizeof(char));
 
-    *out = tmp;
+    if(keep == NULL)
+        return -1;
+
+    // Los extremos siempre se conservan.
+    keep[0]            = 1;
+    keep[in_count - 1] = 1;
+
+    douglas_peucker_recursive(in, 0, in_count - 1, epsilon, keep);
+
+    // Cuenta cuantos puntos quedan tras la simplificacion.
+    int n = 0;
+
+    for(int i = 0; i < in_count; i++)
+        if(keep[i]) n++;
+
+    CNCPoint* tmp = (CNCPoint*)malloc((size_t)n * sizeof(CNCPoint));
+
+    if(tmp == NULL)
+    {
+        free(keep);
+        return -1;
+    }
+
+    int k = 0;
+
+    for(int i = 0; i < in_count; i++)
+        if(keep[i]) tmp[k++] = in[i];
+
+    free(keep);
+
+    *out       = tmp;
     *out_count = n;
     return 0;
 }
@@ -81,94 +151,6 @@ static long long dist2(
     long long dy = (long long)a.y - (long long)b.y;
 
     return dx * dx + dy * dy;
-}
-
-static double dist_euclidiana(
-    CNCPoint a,
-    CNCPoint b
-)
-{
-    // Distancia euclidiana real para verificar paso mínimo de 100.
-    double dx = (double)a.x - (double)b.x;
-    double dy = (double)a.y - (double)b.y;
-
-    return sqrt(dx * dx + dy * dy);
-}
-
-// Elimina segmentos menores a 100 unidades: agrupa y traza rectas.
-static int simplificar_pasos_minimos(
-    const CNCPoint* in,
-    int in_count,
-    CNCPoint** out,
-    int* out_count,
-    int min_step
-)
-{
-    if(in == NULL || out == NULL || out_count == NULL || in_count <= 0 || min_step <= 0)
-        return -1;
-
-    CNCPoint* tmp = (CNCPoint*)malloc((size_t)in_count * sizeof(CNCPoint));
-
-    if(tmp == NULL)
-        return -1;
-
-    int n = 0;
-
-    // Primer punto siempre se conserva.
-    tmp[n++] = in[0];
-
-    int i = 1;
-
-    while(i < in_count)
-    {
-        CNCPoint inicio = tmp[n - 1];
-        CNCPoint fin = in[i];
-        
-        double dist = dist_euclidiana(inicio, fin);
-
-        // Si la distancia es >= min_step, es un paso válido.
-        if(dist >= (double)min_step)
-        {
-            tmp[n++] = fin;
-            i++;
-        }
-        else
-        {
-            // Agrupa puntos cercanos hasta alcanzar min_step o llegar al final.
-            int j = i + 1;
-
-            while(j < in_count)
-            {
-                fin = in[j];
-                dist = dist_euclidiana(inicio, fin);
-
-                if(dist >= (double)min_step)
-                {
-                    // Alcanzamos min_step, dibuja línea recta hacia fin.
-                    tmp[n++] = fin;
-                    i = j + 1;
-                    break;
-                }
-
-                j++;
-            }
-
-            // Si llegamos al final sin alcanzar min_step, dibuja hacia el último.
-            if(j == in_count && dist < (double)min_step)
-            {
-                fin = in[in_count - 1];
-
-                if(!same_point(tmp[n - 1], fin))
-                    tmp[n++] = fin;
-
-                break;
-            }
-        }
-    }
-
-    *out = tmp;
-    *out_count = n;
-    return 0;
 }
 
 int convertir_grafo_a_cnc_paths(
@@ -229,7 +211,7 @@ int convertir_grafo_a_cnc_paths(
         CNCPoint* simp = NULL;
         int simp_count = 0;
 
-        if(simplificar_tramos_colineales(pts, a->trayectoria_len, &simp, &simp_count) != 0)
+        if(simplificar_douglas_peucker(pts, a->trayectoria_len, &simp, &simp_count, CNC_DP_EPSILON) != 0)
         {
             free(pts);
 
@@ -242,40 +224,8 @@ int convertir_grafo_a_cnc_paths(
 
         free(pts);
 
-        // Segundo pase: elimina segmentos menores a 100 unidades (paso mínimo del motor).
-        CNCPoint* min_step = NULL;
-        int min_step_count = 0;
-
-        if(simplificar_pasos_minimos(simp, simp_count, &min_step, &min_step_count, 100) != 0)
-        {
-            free(simp);
-
-            for(int k = 0; k < count; k++)
-                free(paths[k].puntos);
-
-            free(paths);
-            return -1;
-        }
-
-        free(simp);
-
-        // Valida que el path final tenga al menos 100 unidades de distancia.
-        if(min_step_count >= 2)
-        {
-            CNCPoint p1 = min_step[0];
-            CNCPoint p2 = min_step[min_step_count - 1];
-            double dist = dist_euclidiana(p1, p2);
-
-            // Si el path es menor a 100 unidades, lo omite completamente.
-            if(dist < 100.0)
-            {
-                free(min_step);
-                continue;
-            }
-        }
-
-        paths[count].puntos = min_step;
-        paths[count].count = min_step_count;
+        paths[count].puntos = simp;
+        paths[count].count = simp_count;
         count++;
     }
 
@@ -413,6 +363,17 @@ int ejecutar_cnc_paths(
     if(ret != CNC_OK)
     {
         fprintf(stderr, "[CNC] cnc_open fallo: %s\n", cnc_strerror(ret));
+        free(order);
+        free(used);
+        free(reverse);
+        return ret;
+    }
+
+    ret = cnc_pen_up(&handle);
+    if(ret != CNC_OK)
+    {
+        fprintf(stderr, "[CNC] cnc_pen_up fallo: %s\n", cnc_strerror(ret));
+        cnc_close(&handle);
         free(order);
         free(used);
         free(reverse);

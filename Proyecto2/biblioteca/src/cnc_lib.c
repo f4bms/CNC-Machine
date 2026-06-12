@@ -183,22 +183,17 @@ int cnc_draw_path(CNCHandle *handle, const CNCPath *path)
 
     fprintf(stdout, "[cnc_lib] Iniciando trazado: %zu puntos\n", path->count);
 
-    /* 1. Levantar la pluma antes de moverse al punto inicial */
-    ret = cnc_pen_up(handle);
-    if (ret != CNC_OK)
-        return ret;
-
-    /* 2. Moverse al primer punto sin trazar */
+    /* 1. Moverse al primer punto sin trazar */
     ret = cnc_move_to(handle, path->points[0].x, path->points[0].y);
     if (ret != CNC_OK)
         return ret;
 
-    /* 3. Bajar la pluma para iniciar el trazado */
+    /* 2. Bajar la pluma para iniciar el trazado */
     ret = cnc_pen_down(handle);
     if (ret != CNC_OK)
         return ret;
 
-    /* 4. Recorrer el resto de los puntos trazando */
+    /* 3. Recorrer el resto de los puntos trazando */
     for (i = 1; i < path->count; i++)
     {
         ret = cnc_move_to(handle, path->points[i].x, path->points[i].y);
@@ -212,7 +207,7 @@ int cnc_draw_path(CNCHandle *handle, const CNCPath *path)
         }
     }
 
-    /* 5. Levantar la pluma al finalizar el trazado */
+    /* 4. Levantar la pluma al finalizar el trazado */
     ret = cnc_pen_up(handle);
     if (ret != CNC_OK)
         return ret;

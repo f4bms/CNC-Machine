@@ -24,7 +24,7 @@
 #define GPCLR0_OFFSET 0x28
 #define GPLEV0_OFFSET 0x34
 
-#define BIT_DELAY_TIME 500
+#define BIT_DELAY_TIME 1000
 
 // para la cnc se usan:
 
@@ -119,7 +119,7 @@ static void send_byte(u8 byte){
     
     // START BIT (LOW)
     gpio_write(WRITE_PIN, 0);
-    pr_info("[TX] Start bit enviado\n");
+    // pr_info("[TX] Start bit enviado\n");
     udelay(BIT_DELAY_TIME);
     
     // 8 BITS DE DATOS (LSB first)
@@ -134,8 +134,8 @@ static void send_byte(u8 byte){
     
     // STOP BIT (HIGH)
     gpio_write(WRITE_PIN, 1);
-    pr_info("[TX] Stop bit enviado\n");
-    udelay(BIT_DELAY_TIME);
+    //pr_info("[TX] Stop bit enviado\n");
+    udelay(BIT_DELAY_TIME*4);  // Pausa final para asegurar que el receptor detecte el stop bit
     
     pr_info("[TX] Byte 0x%02X enviado completamente\n", byte);
 }
@@ -159,7 +159,7 @@ static int receive_byte(void){
         udelay(1);  // Sleep mínimo para no usar 100% CPU
     }
     
-    pr_info("[RX] Start bit detectado\n");
+    //pr_info("[RX] Start bit detectado\n");
     
     // Espera a estar en el CENTRO del primer bit
     // Start bit: 0-500 μs
@@ -236,23 +236,28 @@ static ssize_t dev_write(struct file *file, const char __user *buf, size_t len, 
     }
 
     pr_info("dev_write: comando='%c', x=%d, y=%d\n", cmd, x, y);
+    
+    int ackFlag = 0;
+    
+    do{
+        ackFlag = 1;
+        //ahora si se envian los datos de 5 bytes, entonces seria CMD X(high) X(low)  Y(high) Y(low)
+        send_byte((u8)cmd);
+        send_byte((u8)(x >> 8));
+        send_byte((u8)x & 0xFF);
+        send_byte((u8)(y >> 8));
+        send_byte((u8)y & 0xFF);
 
-    //ahora si se envian los datos de 5 bytes, entonces seria CMD X(high) X(low)  Y(high) Y(low)
-    send_byte((u8)cmd);
-    send_byte((u8)(x >> 8));
-    send_byte((u8)x & 0xFF);
-    send_byte((u8)(y >> 8));
-    send_byte((u8)y & 0xFF);
-
-    ack = receive_byte();
-    if (ack < 0) {
-        pr_alert("dev_write: error al recibir ACK\n");
-        return -ETIMEDOUT;
-    }
-    if ((u8)ack != 'A') {
-        pr_alert("dev_write: ACK recibido pero invalido: %d\n", ack);
-        return -EIO;
-    }
+        ack = receive_byte();
+        if (ack < 0) {
+            pr_alert("dev_write: error al recibir ACK\n");
+            ackFlag = 0;
+        }
+        if ((u8)ack != 'A') {
+            pr_alert("dev_write: ACK recibido pero invalido: %d\n", ack);
+            ackFlag = 0;
+        }
+    }while(ackFlag == 0);
 
     pr_info("dev_write: ACK recibido, comando ejecutado correctamente\n");
     return len;

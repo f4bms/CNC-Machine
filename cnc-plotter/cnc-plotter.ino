@@ -19,7 +19,7 @@ const int RX_PIN = 32;  // recibe datos desde la RPi (conectar a GPIO17 RPi)
 const int TX_PIN = 33;  // manda ACK a la RPi     (conectar a GPIO27 RPi)
 
 // ===== PROTOCOLO =====
-#define BIT_DELAY_US  500
+#define BIT_DELAY_US  1000
 
 #define CMD_GOTO      'G'
 #define CMD_DRAW      'D'
@@ -94,45 +94,34 @@ void drawLine(int x1, int y1) {
 // Recibe un byte por RX_PIN con timeout.
 // Retorna el byte recibido o -1 si no llega nada en 100ms.
 int bb_recv_byte() {
-  unsigned long timeout = 100000;
+    unsigned long timeout = 100000;
 
-  DBG("[RX] Esperando start bit...\n");
-
-  while (digitalRead(RX_PIN) == HIGH) {
-    if (timeout-- == 0) {
-      // DBG("[RX] Timeout esperando start bit\n");
-      return -1;
+    // esperar flanco bajante (inicio del start bit)
+    while (digitalRead(RX_PIN) == HIGH) {
+        if (timeout-- == 0) return -1;
+        delayMicroseconds(1);
     }
-    delayMicroseconds(1);
-  }
 
-  // DBG("[RX] Start bit detectado\n");
+    // esperar al CENTRO del start bit (mitad del periodo)
+    delayMicroseconds(BIT_DELAY_US / 2);
 
-  delayMicroseconds(BIT_DELAY_US + BIT_DELAY_US / 2);
+    // verificar que sigue en LOW (confirma que es start bit real)
+    if (digitalRead(RX_PIN) != LOW) return -1; // falso positivo, ignorar
 
-  uint8_t byte = 0;
-
-  for (int i = 0; i < 8; i++) {
-    int bit = digitalRead(RX_PIN);
-
-    if (bit)
-      byte |= (1 << i);
-
-    // DBG("[RX] Bit %d = %d\n", i, bit);
-
+    // ahora saltar un periodo completo para llegar al centro del bit 0
     delayMicroseconds(BIT_DELAY_US);
-  }
 
-  delayMicroseconds(BIT_DELAY_US);
+    uint8_t byte = 0;
+    for (int i = 0; i < 8; i++) {
+        if (digitalRead(RX_PIN)) byte |= (1 << i);
+        delayMicroseconds(BIT_DELAY_US);
+    }
 
-  // DBG("[RX] Byte recibido = 0x%02X (%d '%c')\n",
-  //     byte,
-  //     byte,
-  //     (byte >= 32 && byte <= 126) ? byte : '.');
+    // esperar stop bit
+    delayMicroseconds(BIT_DELAY_US / 2);
 
-  return byte;
-}
-// Manda un byte por TX_PIN
+    return byte;
+}// Manda un byte por TX_PIN
 void bb_send_byte(uint8_t byte) {
 
   DBG("[TX] Enviando byte 0x%02X (%d '%c')\n",
