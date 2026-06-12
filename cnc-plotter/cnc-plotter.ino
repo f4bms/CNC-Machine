@@ -214,17 +214,20 @@ void recv_and_execute() {
       DBG("[ERROR] yl timeout\n");
       failed = true;
     }
+    
 
-    if (failed) {
-      send_nack();
-      return;
-    }
+    
 
     DBG("[CMD] xh=%d xl=%d yh=%d yl=%d\n",
         xh, xl, yh, yl);
 
     x = (xh << 8) | xl;
     y = (yh << 8) | yl;
+
+    if (failed || x > 10000 || y > 10000) {
+      send_nack();
+      return;
+    }
 
     DBG("[CMD] Coordenadas decodificadas x=%d y=%d\n",
         x, y);
