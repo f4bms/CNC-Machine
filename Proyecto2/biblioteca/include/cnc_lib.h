@@ -21,8 +21,6 @@
 
 #define CNC_DEVICE_PATH "/dev/gpio_device" /* Ruta al char device del driver */
 #define CNC_CMD_MAX_LEN 64                 /* Longitud máxima de un comando   */
-#define CNC_DEFAULT_SPEED 100              /* Velocidad por defecto (unidades) */
-#define CNC_DEFAULT_ACCEL 50               /* Aceleración por defecto          */
 
 /* =========================================================================
  * Códigos de retorno
@@ -46,8 +44,9 @@
 typedef struct
 {
     int fd;      /* File descriptor del device  */
-    int speed;   /* Velocidad de movimiento actual */
     int is_open; /* Flag de estado               */
+    int32_t x;   /* Posición actual en X         */
+    int32_t y;   /* Posición actual en Y         */
 } CNCHandle;
 
 /*
@@ -104,7 +103,7 @@ int cnc_close(CNCHandle *handle);
 /*
  * cnc_move_to()
  * Mueve el cabezal a una posición absoluta (x, y).
- * Genera el comando "MOVE x y" y lo escribe en el driver.
+ * Genera el comando "G x y" y lo escribe en el driver.
  *
  * Retorna: CNC_OK, CNC_ERR_NOT_OPEN o CNC_ERR_WRITE.
  */
@@ -146,6 +145,7 @@ int cnc_move_down(CNCHandle *handle, int32_t steps);
 /*
  * cnc_home()
  * Envía el cabezal a la posición de origen (0, 0).
+ * Genera el comando "G 0 0" para el driver.
  * Útil para inicializar o resetear la posición antes de una tarea.
  *
  * Retorna: CNC_OK, CNC_ERR_NOT_OPEN o CNC_ERR_WRITE.
@@ -159,7 +159,7 @@ int cnc_home(CNCHandle *handle);
 /*
  * cnc_pen_down()
  * Baja el marcador para iniciar el trazado sobre el PCB.
- * Genera el comando "PEN DOWN" al driver.
+ * Genera el comando "P 0 0" al driver.
  *
  * Retorna: CNC_OK, CNC_ERR_NOT_OPEN o CNC_ERR_WRITE.
  */
@@ -168,7 +168,7 @@ int cnc_pen_down(CNCHandle *handle);
 /*
  * cnc_pen_up()
  * Levanta el marcador para moverse sin trazar.
- * Genera el comando "PEN UP" al driver.
+ * Genera el comando "U 0 0" al driver.
  *
  * Retorna: CNC_OK, CNC_ERR_NOT_OPEN o CNC_ERR_WRITE.
  */
@@ -193,21 +193,14 @@ int cnc_pen_up(CNCHandle *handle);
  */
 int cnc_draw_path(CNCHandle *handle, const CNCPath *path);
 
-/* =========================================================================
- * API pública — Configuración
- * ========================================================================= */
-
 /*
  * cnc_set_speed()
- * Configura la velocidad de movimiento del motor.
- * Genera el comando "SPEED value" al driver.
- *
- * Parámetros:
- *   speed - valor entero positivo de velocidad
+ * Ajusta la velocidad de la CNC enviando un comando raw compatible.
+ * El driver puede usar este comando para configurar su temporización.
  *
  * Retorna: CNC_OK, CNC_ERR_NOT_OPEN, CNC_ERR_INVALID o CNC_ERR_WRITE.
  */
-int cnc_set_speed(CNCHandle *handle, int speed);
+int cnc_set_speed(CNCHandle *handle, int32_t speed);
 
 /* =========================================================================
  * API pública — I/O raw (lectura/escritura directa al driver)

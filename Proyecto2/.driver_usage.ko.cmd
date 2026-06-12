@@ -1,1 +1,0 @@
-savedcmd_driver_usage.ko := ld -r -m elf_x86_64 -z noexecstack --no-warn-rwx-segments --build-id=sha1  -T /usr/src/linux-headers-6.17.0-23-generic/scripts/module.lds -o driver_usage.ko driver_usage.o driver_usage.mod.o .module-common.o
