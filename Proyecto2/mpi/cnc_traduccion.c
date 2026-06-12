@@ -3,6 +3,7 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <math.h>
 
 static int same_point(
     CNCPoint a,
@@ -82,6 +83,94 @@ static long long dist2(
     return dx * dx + dy * dy;
 }
 
+static double dist_euclidiana(
+    CNCPoint a,
+    CNCPoint b
+)
+{
+    // Distancia euclidiana real para verificar paso mínimo de 100.
+    double dx = (double)a.x - (double)b.x;
+    double dy = (double)a.y - (double)b.y;
+
+    return sqrt(dx * dx + dy * dy);
+}
+
+// Elimina segmentos menores a 100 unidades: agrupa y traza rectas.
+static int simplificar_pasos_minimos(
+    const CNCPoint* in,
+    int in_count,
+    CNCPoint** out,
+    int* out_count,
+    int min_step
+)
+{
+    if(in == NULL || out == NULL || out_count == NULL || in_count <= 0 || min_step <= 0)
+        return -1;
+
+    CNCPoint* tmp = (CNCPoint*)malloc((size_t)in_count * sizeof(CNCPoint));
+
+    if(tmp == NULL)
+        return -1;
+
+    int n = 0;
+
+    // Primer punto siempre se conserva.
+    tmp[n++] = in[0];
+
+    int i = 1;
+
+    while(i < in_count)
+    {
+        CNCPoint inicio = tmp[n - 1];
+        CNCPoint fin = in[i];
+        
+        double dist = dist_euclidiana(inicio, fin);
+
+        // Si la distancia es >= min_step, es un paso válido.
+        if(dist >= (double)min_step)
+        {
+            tmp[n++] = fin;
+            i++;
+        }
+        else
+        {
+            // Agrupa puntos cercanos hasta alcanzar min_step o llegar al final.
+            int j = i + 1;
+
+            while(j < in_count)
+            {
+                fin = in[j];
+                dist = dist_euclidiana(inicio, fin);
+
+                if(dist >= (double)min_step)
+                {
+                    // Alcanzamos min_step, dibuja línea recta hacia fin.
+                    tmp[n++] = fin;
+                    i = j + 1;
+                    break;
+                }
+
+                j++;
+            }
+
+            // Si llegamos al final sin alcanzar min_step, dibuja hacia el último.
+            if(j == in_count && dist < (double)min_step)
+            {
+                fin = in[in_count - 1];
+
+                if(!same_point(tmp[n - 1], fin))
+                    tmp[n++] = fin;
+
+                break;
+            }
+        }
+    }
+
+    *out = tmp;
+    *out_count = n;
+    return 0;
+}
+
 int convertir_grafo_a_cnc_paths(
     const Grafo* grafo,
     int scale_steps,
@@ -153,8 +242,40 @@ int convertir_grafo_a_cnc_paths(
 
         free(pts);
 
-        paths[count].puntos = simp;
-        paths[count].count = simp_count;
+        // Segundo pase: elimina segmentos menores a 100 unidades (paso mínimo del motor).
+        CNCPoint* min_step = NULL;
+        int min_step_count = 0;
+
+        if(simplificar_pasos_minimos(simp, simp_count, &min_step, &min_step_count, 100) != 0)
+        {
+            free(simp);
+
+            for(int k = 0; k < count; k++)
+                free(paths[k].puntos);
+
+            free(paths);
+            return -1;
+        }
+
+        free(simp);
+
+        // Valida que el path final tenga al menos 100 unidades de distancia.
+        if(min_step_count >= 2)
+        {
+            CNCPoint p1 = min_step[0];
+            CNCPoint p2 = min_step[min_step_count - 1];
+            double dist = dist_euclidiana(p1, p2);
+
+            // Si el path es menor a 100 unidades, lo omite completamente.
+            if(dist < 100.0)
+            {
+                free(min_step);
+                continue;
+            }
+        }
+
+        paths[count].puntos = min_step;
+        paths[count].count = min_step_count;
         count++;
     }
 

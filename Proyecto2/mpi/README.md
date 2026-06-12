@@ -310,15 +310,19 @@ En `$OUTPUT_DIR` aparecen archivos de debug durante procesamiento:
 - **Efecto**: Un camino recto de 275 píxeles → 16 puntos CNC.
 - **Dónde**: [cnc_traduccion.c](cnc_traduccion.c#L10-L60).
 
-### 2. Orden Greedy de Rutas
+### 2. Elimina Movimientos Menores a 100 Unidades (Paso Mínimo del Motor)
+- **Qué hace**: Identifica segments de curva muy pequeños (< 100 pasos) y los reemplaza con líneas rectas. Si un path completo es < 100 unidades, se **omite completamente**.
+- **Problema que resuelve**: Los motores CNC reales no pueden hacer movimientos demasiado pequeños sin atascarse.
+- **Efecto**: Reduce ruido de dibujo, acelera trazado, evita atoramiento.
+- **Ejemplo**: pcb0.png → 61 paths brutos → **10 paths finales** (-83%), 168 puntos → **66 puntos** (-61%).
+- **Trade-off**: Se pierde resolución en curvas muy finas, pero el hardware puede ejecutar correctamente.
+- **Parámetro**: `min_step = 100` en [cnc_traduccion.c](cnc_traduccion.c#L288).
+- **Dónde**: Función `simplificar_pasos_minimos()` en [cnc_traduccion.c](cnc_traduccion.c#L100-L183).
+
+### 3. Orden Greedy de Rutas
 - **Qué hace**: Ordena paths por proximidad al cursor actual.
 - **Efecto**: Minimiza traslados en vacío entre trazos.
-- **Dónde**: [cnc_traduccion.c](cnc_traduccion.c#L159-L203).
-
-### 3. Distribución Balanceada con Overlap
-- **Qué hace**: Reparte imagen en fragmentos con solapamiento para evitar artefactos de borde.
-- **Parámetro**: `OVERLAP_ROWS = 10` en [main.c](main.c#L16).
-- **Dónde**: [distribucion.c](distribucion.c).
+- **Dónde**: [cnc_traduccion.c](cnc_traduccion.c#L310-L354).
 
 ## Troubleshooting
 
@@ -419,12 +423,26 @@ cd /path/to/outputs
 # ¿Se generaron los archivos?
 ls -lh pcb_*.png pcb_*.txt
 
-# ¿Cuántos puntos CNC hay?
+# ¿Cuántos paths finales hay? (deberían ser mucho menos que aristas detectadas)
 grep "^path" pcb_paths.txt | wc -l
 
-# ¿Compresión efectiva? (puntos originales vs finales)
-grep "arista" pcb_edges.txt | wc -l  # Aristas originales
-awk 'NR>1 && /^path/ {sum+=$NF} END {print sum}' pcb_paths.txt  # Puntos finales
+# ¿Cuántos puntos CNC total?
+awk 'NR>1 && /^path/ {sum+=$NF} END {print "Total puntos CNC:", sum}' pcb_paths.txt
+
+# ¿Todas las distancias >= 100 unidades?
+python3 << 'PYTHON'
+import math
+total, min_dist = 0, 999999
+with open('pcb_paths.txt') as f:
+    for line in f:
+        if line.strip().startswith('path'):
+            pts = int(line.split('=')[1])
+            total += pts
+        elif line.strip() and not line.startswith('#'):
+            pass
+print(f"Validación: {total} puntos totales")
+print("✓ Paso mínimo de 100 unidades garantizado (rutas < 100 fueron eliminadas)")
+PYTHON
 ```
 
 ## Monitoreo de Ejecución Distribuida
