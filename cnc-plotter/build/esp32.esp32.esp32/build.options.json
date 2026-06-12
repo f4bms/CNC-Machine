@@ -1,0 +1,9 @@
+{
+  "additionalFiles": "",
+  "compiler.optimization_flags": "-Os",
+  "customBuildProperties": "",
+  "fqbn": "esp32:esp32:esp32",
+  "hardwareFolders": "/home/fabs/.arduino15/packages/esp32/hardware/esp32/3.3.10,/home/fabs/.arduino15/packages/esp32/hardware/esp32/3.3.10",
+  "otherLibrariesFolders": "/home/fabs/Arduino/libraries",
+  "sketchLocation": "/home/fabs/Github/CNC-Machine/cnc-plotter"
+}

@@ -1,18 +1,3 @@
-/*
- * cnc_lib.c
- * Implementación de la biblioteca de control CNC para trazado de PCB.
- *
- * Toda comunicación con el hardware pasa por esta biblioteca.
- * El servidor NUNCA debe abrir /dev/gpio_device directamente.
- *
- * Protocolo de comandos hacia el driver (texto plano via write):
- *   G <x> <y>        - ir a coordenada absoluta (GOTO)
- *   U               - levantar pluma
- *   P               - bajar pluma
- *
- * Nota: el comando DRAW ('D') no se utiliza en esta biblioteca.
- */
-
 #include "cnc_lib.h"
 
 #include <stdio.h>
@@ -22,15 +7,7 @@
 #include <unistd.h>
 #include <errno.h>
 
-/* =========================================================================
- * Función interna: escribe directamente al fd del driver
- * ========================================================================= */
-
-/*
- * _cnc_send_cmd()
- * Función privada. Escribe el string `cmd` al file descriptor del driver.
- * Todos los métodos públicos terminan llamando a esta función.
- *
+/* Escribe el string `cmd` al file descriptor del driver.
  * Retorna: CNC_OK si write() tuvo éxito, CNC_ERR_WRITE en caso contrario.
  */
 static int _cnc_send_cmd(CNCHandle *handle, const char *cmd)
@@ -43,21 +20,15 @@ static int _cnc_send_cmd(CNCHandle *handle, const char *cmd)
 
     if (written < 0)
     {
-        /* Imprimimos el error del sistema operativo para ayudar al debug */
         fprintf(stderr, "[cnc_lib] write() falló: %s (cmd='%s')\n",
                 strerror(errno), cmd);
         return CNC_ERR_WRITE;
     }
 
-    /* El driver recibió los bytes; log informativo */
     fprintf(stdout, "[cnc_lib] CMD enviado: %s", cmd);
 
     return CNC_OK;
 }
-
-/* =========================================================================
- * Ciclo de vida
- * ========================================================================= */
 
 int cnc_open(CNCHandle *handle, const char *device)
 {
@@ -108,9 +79,7 @@ int cnc_close(CNCHandle *handle)
     return CNC_OK;
 }
 
-/* =========================================================================
- * Movimiento
- * ========================================================================= */
+//funciones de movimiento
 
 int cnc_move_to(CNCHandle *handle, int32_t x, int32_t y)
 {
@@ -137,9 +106,6 @@ int cnc_home(CNCHandle *handle)
     return cnc_move_to(handle, 0, 0);
 }
 
-/* =========================================================================
- * Control de la pluma
- * ========================================================================= */
 
 int cnc_pen_down(CNCHandle *handle)
 {
@@ -161,10 +127,7 @@ int cnc_pen_up(CNCHandle *handle)
     return _cnc_send_cmd(handle, "U 0 0\n");
 }
 
-/* =========================================================================
- * Trazado de ruta completa
- * ========================================================================= */
-
+//esto es lo que realmente se hace para un path completo
 int cnc_draw_path(CNCHandle *handle, const CNCPath *path)
 {
     size_t i;
@@ -216,10 +179,7 @@ int cnc_draw_path(CNCHandle *handle, const CNCPath *path)
     return CNC_OK;
 }
 
-/* =========================================================================
- * I/O raw
- * ========================================================================= */
-
+//para i/o -> solo se usa el write pq el read no conecta con userspace
 int cnc_write(CNCHandle *handle, const char *cmd)
 {
     if (handle == NULL || !handle->is_open)
@@ -274,10 +234,8 @@ int cnc_read(CNCHandle *handle, char *buf, size_t len)
     return (int)n;
 }
 
-/* =========================================================================
- * Utilidades
- * ========================================================================= */
 
+    // Utilidades
 const char *cnc_strerror(int error_code)
 {
     switch (error_code)
