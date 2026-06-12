@@ -71,7 +71,7 @@ int cnc_open(CNCHandle *handle, const char *device)
     /* Si no se pasa ruta, usamos el default definido en el header */
     path = (device != NULL) ? device : CNC_DEVICE_PATH;
 
-    handle->fd = open(path, O_WRONLY);
+    handle->fd = open(path, O_RDWR);
     handle->is_open = 0;
     handle->x = 0;
     handle->y = 0;
@@ -125,70 +125,6 @@ int cnc_move_to(CNCHandle *handle, int32_t x, int32_t y)
     handle->x = x;
     handle->y = y;
     return _cnc_send_cmd(handle, cmd);
-}
-
-int cnc_move_right(CNCHandle *handle, int32_t steps)
-{
-    if (handle == NULL || !handle->is_open)
-    {
-        return CNC_ERR_NOT_OPEN;
-    }
-
-    if (steps <= 0)
-    {
-        fprintf(stderr, "[cnc_lib] cnc_move_right: steps debe ser > 0\n");
-        return CNC_ERR_INVALID;
-    }
-
-    return cnc_move_to(handle, handle->x + steps, handle->y);
-}
-
-int cnc_move_left(CNCHandle *handle, int32_t steps)
-{
-    if (handle == NULL || !handle->is_open)
-    {
-        return CNC_ERR_NOT_OPEN;
-    }
-
-    if (steps <= 0)
-    {
-        fprintf(stderr, "[cnc_lib] cnc_move_left: steps debe ser > 0\n");
-        return CNC_ERR_INVALID;
-    }
-
-    return cnc_move_to(handle, handle->x - steps, handle->y);
-}
-
-int cnc_move_up(CNCHandle *handle, int32_t steps)
-{
-    if (handle == NULL || !handle->is_open)
-    {
-        return CNC_ERR_NOT_OPEN;
-    }
-
-    if (steps <= 0)
-    {
-        fprintf(stderr, "[cnc_lib] cnc_move_up: steps debe ser > 0\n");
-        return CNC_ERR_INVALID;
-    }
-
-    return cnc_move_to(handle, handle->x, handle->y + steps);
-}
-
-int cnc_move_down(CNCHandle *handle, int32_t steps)
-{
-    if (handle == NULL || !handle->is_open)
-    {
-        return CNC_ERR_NOT_OPEN;
-    }
-
-    if (steps <= 0)
-    {
-        fprintf(stderr, "[cnc_lib] cnc_move_down: steps debe ser > 0\n");
-        return CNC_ERR_INVALID;
-    }
-
-    return cnc_move_to(handle, handle->x, handle->y - steps);
 }
 
 int cnc_home(CNCHandle *handle)
@@ -289,24 +225,6 @@ int cnc_draw_path(CNCHandle *handle, const CNCPath *path)
  * I/O raw
  * ========================================================================= */
 
-int cnc_set_speed(CNCHandle *handle, int32_t speed)
-{
-    char cmd[CNC_CMD_MAX_LEN];
-
-    if (handle == NULL || !handle->is_open)
-    {
-        return CNC_ERR_NOT_OPEN;
-    }
-
-    if (speed <= 0)
-    {
-        return CNC_ERR_INVALID;
-    }
-
-    snprintf(cmd, sizeof(cmd), "SPEED %d\n", speed);
-    return _cnc_send_cmd(handle, cmd);
-}
-
 int cnc_write(CNCHandle *handle, const char *cmd)
 {
     if (handle == NULL || !handle->is_open)
@@ -329,6 +247,8 @@ int cnc_write(CNCHandle *handle, const char *cmd)
     return _cnc_send_cmd(handle, cmd);
 }
 
+
+//ese cnc read como dice el comentario de más abajo no se usa pq el driver hasta el momento no ocupa recibir nada del 
 int cnc_read(CNCHandle *handle, char *buf, size_t len)
 {
     ssize_t n;
