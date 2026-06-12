@@ -4,6 +4,72 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+static int same_point(
+    CNCPoint a,
+    CNCPoint b
+)
+{
+    return a.x == b.x && a.y == b.y;
+}
+
+// Compacta tramos rectos: conserva puntos de cambio de direccion y extremos.
+static int simplificar_tramos_colineales(
+    const CNCPoint* in,
+    int in_count,
+    CNCPoint** out,
+    int* out_count
+)
+{
+    if(in == NULL || out == NULL || out_count == NULL || in_count <= 0)
+        return -1;
+
+    CNCPoint* tmp = (CNCPoint*)malloc((size_t)in_count * sizeof(CNCPoint));
+
+    if(tmp == NULL)
+        return -1;
+
+    int n = 0;
+
+    // Siempre conserva el primer punto del path.
+    tmp[n++] = in[0];
+
+    for(int i = 1; i < in_count - 1; i++)
+    {
+        CNCPoint a = tmp[n - 1];
+        CNCPoint b = in[i];
+        CNCPoint c = in[i + 1];
+
+        if(same_point(a, b))
+            continue;
+
+        // El punto final del path se preserva al salir del bucle.
+        if(same_point(b, c))
+            continue;
+
+        long long v1x = (long long)b.x - (long long)a.x;
+        long long v1y = (long long)b.y - (long long)a.y;
+        long long v2x = (long long)c.x - (long long)b.x;
+        long long v2y = (long long)c.y - (long long)b.y;
+
+        long long cross = v1x * v2y - v1y * v2x;
+        long long dot = v1x * v2x + v1y * v2y;
+
+        // Si sigue en la misma direccion sobre la misma recta, omite el punto medio.
+        if(cross == 0 && dot > 0)
+            continue;
+
+        tmp[n++] = b;
+    }
+
+    // Siempre conserva el ultimo punto del path.
+    if(in_count > 1 && !same_point(tmp[n - 1], in[in_count - 1]))
+        tmp[n++] = in[in_count - 1];
+
+    *out = tmp;
+    *out_count = n;
+    return 0;
+}
+
 static long long dist2(
     CNCPoint a,
     CNCPoint b
@@ -71,8 +137,24 @@ int convertir_grafo_a_cnc_paths(
             pts[j].y = a->trayectoria[j].y * scale_steps;
         }
 
-        paths[count].puntos = pts;
-        paths[count].count = a->trayectoria_len;
+        CNCPoint* simp = NULL;
+        int simp_count = 0;
+
+        if(simplificar_tramos_colineales(pts, a->trayectoria_len, &simp, &simp_count) != 0)
+        {
+            free(pts);
+
+            for(int k = 0; k < count; k++)
+                free(paths[k].puntos);
+
+            free(paths);
+            return -1;
+        }
+
+        free(pts);
+
+        paths[count].puntos = simp;
+        paths[count].count = simp_count;
         count++;
     }
 
